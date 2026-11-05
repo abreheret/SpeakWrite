@@ -58,7 +58,7 @@ Layout of `app/src`:
 | `textnorm/` | French spelling-out of numbers, times, ordinals, %, €, F1–F24 keys; pronunciation dictionary. Other languages: Markdown and spaces only, their models read digits themselves |
 | `tts/` | `TtsEngine` trait, one engine per language started on demand, Pocket TTS engine, verified binary download, streamed WAV reader |
 | `tray.rs` | Tray icon and menu (voices, language, speed, MP3, dictation), rebuilt on every change |
-| `voices.rs` | Catalogue: built-in voices and recordings in the `voices/` folder, import of a new file |
+| `voices.rs` | Catalogue: built-in voices and recordings in the `voices/` folder, import of a new file, renaming |
 | `voiceprep.rs` | Prepares each recording for cloning: mono, long pauses shortened, the best 25 s of speech, high-pass filter, level normalization, cached. Otherwise Pocket TTS uses the whole file: 4 minutes led to a 73 GB allocation and a crash |
 | `stretch.rs` | Playback speed without pitch change: streaming WSOLA time-stretch, pure Rust |
 | `audio.rs` | Gapless playback of streamed chunks, pause, instant stop |
@@ -142,11 +142,11 @@ The **tray menu** covers everything, without editing the configuration file:
 - **Dictation**:
   - type as you speak, or paste everything on release, for apps that ignore simulated keystrokes;
   - add a trailing space after each dictation.
-- **Play a sample**, advanced settings (file), reload, logs, quit.
+- **Play a sample**, menu language (`Menu in English` / `Menu en français`), advanced settings (file), reload, logs, quit.
 
 Every choice is saved to `config.toml`, keeping the file's comments.
 
-The menu labels are in French for now.
+The menu and dialogs are in French or English: `Menu in English` switches to English, `Menu en français` back to French. The choice is stored in `[interface] language`.
 
 ### Configuration
 

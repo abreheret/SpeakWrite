@@ -183,7 +183,7 @@ Voice cloning requires access to the `kyutai/pocket-tts` repository, which is fr
    uvx --from huggingface_hub hf auth login
    ```
    This command needs [uv](https://docs.astral.sh/uv/). Alternative: `pip install -U huggingface_hub`, then `hf auth login`. The token is saved in the Hugging Face cache, where pocket-tts and SpeakWrite find it.
-4. Tray menu → `Voix` → `Ajouter une voix…` (the menu is in French for now), then pick 10 to 30 seconds of natural speech (WAV, MP3, M4A, FLAC or OGG).
+4. Tray menu → `Voice` → `Add a voice…`, then pick 10 to 30 seconds of natural speech (WAV, MP3, M4A, FLAC or OGG).
 
 Only use your own voice, or the voice of someone who gave explicit consent.
 
@@ -195,7 +195,7 @@ Without access, reading fails with a `403` / `GatedRepoError` in the logs. The b
 2. **Reading**: select text in any application, then press **F9**.
 3. **Dictation**: click in a text field, hold **F8**, speak, then release.
 
-All settings are in the tray menu, in French for now. The configuration file opens from `Réglages avancés (fichier)…`. Hotkeys and settings are described in the [README](README.md#usage).
+All settings are in the tray menu. It starts in French: click `Menu in English` to switch it to English. The configuration file opens from `Advanced settings (file)…`. Hotkeys and settings are described in the [README](README.md#usage).
 
 Diagnostic commands:
 
@@ -217,8 +217,8 @@ On Windows, the release executable has no console. To see its output, pipe it:
 | `nvcc not found: dictation will run on the CPU` | CUDA is missing or not on the `PATH`. Not blocking: dictation runs on the CPU |
 | A hotkey does nothing; the logs say `cannot register hotkey` | Another app already uses the key (AutoHotkey, screen capture tools…). Close it, or change the key in `[hotkeys]` |
 | `403` or `GatedRepoError` | Cloned voice without access to `kyutai/pocket-tts`: see section 5, or pick a built-in voice |
-| Very long first launch | Model download (about 3.5 GB). Progress is in the logs, menu → `Ouvrir les journaux` |
-| Dictation types nothing into some windows (Windows) | Windows running as administrator reject simulated keystrokes. Run SpeakWrite as administrator too, or use paste mode (`Dictée` → `Coller tout au relâchement`) |
+| Very long first launch | Model download (about 3.5 GB). Progress is in the logs, menu → `Open the logs` |
+| Dictation types nothing into some windows (Windows) | Windows running as administrator reject simulated keystrokes. Run SpeakWrite as administrator too, or use paste mode (`Dictation` → `Paste everything on release`) |
 | Linux: no icon | GNOME needs the AppIndicator extension. On Wayland, global hotkeys and simulated typing depend on the desktop; X11 works |
 | macOS: hotkeys or dictation do nothing | Allow SpeakWrite in System Settings → Privacy & Security: "Accessibility", "Input Monitoring", "Microphone" |
 | macOS: `ld: tapi error: malformed file` … `unknown architecture` | The Command Line Tools linker is older than the newest SDK installed: see below |

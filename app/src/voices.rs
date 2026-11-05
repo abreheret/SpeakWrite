@@ -103,6 +103,41 @@ pub fn import(paths: &Paths, source: &Path) -> Result<VoiceEntry> {
     Ok(VoiceEntry { label: label_of(&file_name), value: format!("voices/{file_name}") })
 }
 
+/// Renames a recording of the voices folder, keeping its extension, and returns its new entry.
+/// `new_name` is what the user typed; an extension they added is ignored.
+pub fn rename(paths: &Paths, value: &str, new_name: &str) -> Result<VoiceEntry> {
+    let file_name = Path::new(value).file_name().context("not a voice file")?;
+    let source = paths.voices_dir.join(file_name);
+    let extension = source.extension().context("file without extension")?.to_string_lossy().into_owned();
+    let stem = file_stem_for(new_name, &extension)?;
+    let destination = paths.voices_dir.join(format!("{stem}.{extension}"));
+    // A change of case only is the same file on case-insensitive file systems (macOS, Windows).
+    let same_file = destination.to_string_lossy().to_lowercase() == source.to_string_lossy().to_lowercase();
+    if destination.exists() && !same_file {
+        bail!("a voice named \"{stem}\" already exists");
+    }
+    std::fs::rename(&source, &destination).with_context(|| {
+        format!("cannot rename {} to {}", source.display(), destination.display())
+    })?;
+    let file_name = destination.file_name().expect("has a name").to_string_lossy().into_owned();
+    Ok(VoiceEntry { label: label_of(&file_name), value: format!("voices/{file_name}") })
+}
+
+/// The file stem for a typed voice name: trimmed, without the voice's own extension.
+fn file_stem_for(name: &str, extension: &str) -> Result<String> {
+    let name = name.trim();
+    let suffix = format!(".{}", extension.to_lowercase());
+    let name = if name.to_lowercase().ends_with(&suffix) { &name[..name.len() - suffix.len()] } else { name };
+    let name = name.trim();
+    if name.is_empty() || name.starts_with('.') {
+        bail!("the name is empty");
+    }
+    if let Some(c) = name.chars().find(|c| matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control()) {
+        bail!("the name cannot contain \"{c}\"");
+    }
+    Ok(name.to_string())
+}
+
 fn unique_path(dir: &Path, stem: &str, extension: &str) -> PathBuf {
     let mut candidate = dir.join(format!("{stem}.{extension}"));
     let mut n = 2;
@@ -124,5 +159,40 @@ mod tests {
         assert_eq!(label_of("voices/ma_voix.wav"), "ma voix");
         assert!(is_builtin("estelle"));
         assert!(!is_builtin("voices/estelle.wav"));
+    }
+
+    #[test]
+    fn rename_names() {
+        assert_eq!(file_stem_for("  Ma voix  ", "wav").unwrap(), "Ma voix");
+        assert_eq!(file_stem_for("Ma voix.WAV", "wav").unwrap(), "Ma voix");
+        assert_eq!(file_stem_for("v1.2", "mp3").unwrap(), "v1.2");
+        assert!(file_stem_for("   ", "wav").is_err());
+        assert!(file_stem_for(".wav", "wav").is_err());
+        assert!(file_stem_for("../voix", "wav").is_err());
+        assert!(file_stem_for("a:b", "wav").is_err());
+    }
+
+    #[test]
+    fn rename_file() {
+        let dir = std::env::temp_dir().join(format!("speakwrite-rename-{}", std::process::id()));
+        let paths = Paths {
+            config_dir: dir.clone(),
+            config_file: dir.join("config.toml"),
+            voices_dir: dir.join("voices"),
+            voice_cache_dir: dir.join("voice-cache"),
+            log_dir: dir.join("logs"),
+            bin_dir: dir.join("bin"),
+        };
+        std::fs::create_dir_all(&paths.voices_dir).unwrap();
+        std::fs::write(paths.voices_dir.join("ma_voix.wav"), b"x").unwrap();
+        std::fs::write(paths.voices_dir.join("autre.wav"), b"y").unwrap();
+
+        let entry = rename(&paths, "voices/ma_voix.wav", "Amaury").unwrap();
+        assert_eq!(entry, VoiceEntry { label: "Amaury".into(), value: "voices/Amaury.wav".into() });
+        assert!(paths.voices_dir.join("Amaury.wav").is_file());
+        assert!(rename(&paths, "voices/Amaury.wav", "autre").is_err());
+        assert!(rename(&paths, "voices/Amaury.wav", "amaury").is_ok());
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

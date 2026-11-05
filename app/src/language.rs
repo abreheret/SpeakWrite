@@ -4,18 +4,20 @@
 use lingua::Language as Lang;
 use lingua::LanguageDetectorBuilder;
 
+use crate::config::UiLanguage;
+
 /// Config value of the language setting that detects the language of each text.
 pub const AUTO: &str = "auto";
 
-/// Languages with a Pocket TTS model: config name, detector code, menu label.
-const LANGUAGES: [(&str, Lang, &str); 7] = [
-    ("french", Lang::French, "Français"),
-    ("english", Lang::English, "Anglais"),
-    ("german", Lang::German, "Allemand"),
-    ("spanish", Lang::Spanish, "Espagnol"),
-    ("italian", Lang::Italian, "Italien"),
-    ("portuguese", Lang::Portuguese, "Portugais"),
-    ("dutch", Lang::Dutch, "Néerlandais"),
+/// Languages with a Pocket TTS model: config name, detector code, menu labels (French, English).
+const LANGUAGES: [(&str, Lang, &str, &str); 7] = [
+    ("french", Lang::French, "Français", "French"),
+    ("english", Lang::English, "Anglais", "English"),
+    ("german", Lang::German, "Allemand", "German"),
+    ("spanish", Lang::Spanish, "Espagnol", "Spanish"),
+    ("italian", Lang::Italian, "Italien", "Italian"),
+    ("portuguese", Lang::Portuguese, "Portugais", "Portuguese"),
+    ("dutch", Lang::Dutch, "Néerlandais", "Dutch"),
 ];
 
 /// Lines with fewer letters take the language of their neighbours: too short to tell.
@@ -33,11 +35,13 @@ pub fn is_known(model: &str) -> bool {
     LANGUAGES.iter().any(|(name, ..)| *name == base(model))
 }
 
-/// "Français" for "french" or "french_24l"; other names as written.
-pub fn label(model: &str) -> String {
+/// "Français" for "french" or "french_24l" (in the menu language); other names as written.
+pub fn label(model: &str, ui: UiLanguage) -> String {
     match LANGUAGES.iter().find(|(name, ..)| *name == base(model)) {
-        Some((_, _, label)) if base(model) == model => label.to_string(),
-        Some((_, _, label)) => format!("{label} ({model})"),
+        Some((_, _, french, english)) => {
+            let label = ui.pick(french, english);
+            if base(model) == model { label.to_string() } else { format!("{label} ({model})") }
+        }
         None => model.to_string(),
     }
 }
@@ -62,7 +66,7 @@ impl LanguageDetector {
     pub fn new(models: &[String]) -> Self {
         let mut known: Vec<(Lang, String)> = Vec::new();
         for model in models {
-            let Some((_, lang, _)) = LANGUAGES.iter().find(|(name, ..)| *name == base(model)) else {
+            let Some((_, lang, ..)) = LANGUAGES.iter().find(|(name, ..)| *name == base(model)) else {
                 continue;
             };
             if !known.iter().any(|(l, _)| l == lang) {
@@ -214,8 +218,9 @@ mod tests {
     fn model_names() {
         assert!(is_known("french_24l"));
         assert!(!is_known("klingon"));
-        assert_eq!(label("english"), "Anglais");
-        assert_eq!(label("french_24l"), "Français (french_24l)");
+        assert_eq!(label("english", UiLanguage::French), "Anglais");
+        assert_eq!(label("english", UiLanguage::English), "English");
+        assert_eq!(label("french_24l", UiLanguage::French), "Français (french_24l)");
         let detector = LanguageDetector::new(&["english_2026-10".to_string(), "french".to_string()]);
         assert_eq!(detector.segments("Introduction")[0].language, "english_2026-10");
         assert_eq!(detector.split("german", "Hallo")[0].language, "german");

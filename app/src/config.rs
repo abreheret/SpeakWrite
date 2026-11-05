@@ -11,6 +11,10 @@ use serde::Deserialize;
 const DEFAULT_CONFIG: &str = r#"# Configuration de SpeakWrite.
 # Après modification : menu de l'icône > « Recharger la configuration ».
 
+[interface]
+# Langue du menu et des fenêtres : "french" ou "english". Se change aussi dans le menu.
+language = "french"
+
 [hotkeys]
 # Syntaxe : "F9", "Ctrl+Shift+L", "Alt+F2"...
 read = "F9"         # lire la sélection
@@ -91,6 +95,7 @@ binary = ""
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
+    pub interface: InterfaceConfig,
     pub hotkeys: HotkeysConfig,
     pub selection: SelectionConfig,
     pub playback: PlaybackConfig,
@@ -100,6 +105,44 @@ pub struct Config {
     pub pocket: PocketConfig,
     #[serde(default)]
     pub pronunciation: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct InterfaceConfig {
+    pub language: UiLanguage,
+}
+
+/// Language of the menu and dialogs (the reading language is `PocketConfig::language`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UiLanguage {
+    French,
+    English,
+}
+
+impl UiLanguage {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::French => "french",
+            Self::English => "english",
+        }
+    }
+
+    /// The other one: the menu switches between the two.
+    pub fn other(self) -> Self {
+        match self {
+            Self::French => Self::English,
+            Self::English => Self::French,
+        }
+    }
+
+    /// The text for this language.
+    pub fn pick<'a>(self, french: &'a str, english: &'a str) -> &'a str {
+        match self {
+            Self::French => french,
+            Self::English => english,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -396,6 +439,7 @@ mod tests {
     fn defaults_parse() {
         let config = Config::default();
         assert_eq!(config.hotkeys.read, "F9");
+        assert_eq!(config.interface.language, UiLanguage::French);
         assert_eq!(config.tts.engine, "pocket");
         assert!(config.pronunciation.is_empty());
     }
@@ -438,6 +482,17 @@ mod tests {
     }
 
     #[test]
+    fn interface_language_added_to_older_files() {
+        let mut document: toml_edit::DocumentMut = "[playback]\nspeed = 1.0\n".parse().unwrap();
+        document["interface"]["language"] = toml_edit::value(UiLanguage::English.as_str());
+        let user: toml::Table = toml::from_str(&document.to_string()).unwrap();
+        let mut merged: toml::Table = toml::from_str(DEFAULT_CONFIG).unwrap();
+        merge_tables(&mut merged, user);
+        let config: Config = toml::Value::Table(merged).try_into().unwrap();
+        assert_eq!(config.interface.language, UiLanguage::English);
+    }
+
+    #[test]
     fn partial_user_file_keeps_defaults() {
         let mut merged: toml::Table = toml::from_str(DEFAULT_CONFIG).unwrap();
         let user: toml::Table =
@@ -448,5 +503,6 @@ mod tests {
         assert_eq!(config.hotkeys.stop, "Shift+F10");
         assert_eq!(config.hotkeys.pause, "F10");
         assert_eq!(config.pronunciation["OTAN"], "otane");
+        assert_eq!(config.interface.language, UiLanguage::French);
     }
 }

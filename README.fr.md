@@ -58,7 +58,7 @@ Organisation de `app/src` :
 | `textnorm/` | Écriture en toutes lettres pour le français : nombres, heures, ordinaux, %, €, touches F1 à F24, dictionnaire de prononciation. Autres langues : Markdown et espaces seulement, leurs modèles lisent eux-mêmes les chiffres |
 | `tts/` | Interface `TtsEngine`, un moteur par langue démarré à la demande, moteur Pocket TTS, téléchargement vérifié du binaire, lecture du WAV en streaming |
 | `tray.rs` | Icône et menu (voix, langue, vitesse, MP3, dictée), reconstruit à chaque changement |
-| `voices.rs` | Catalogue : voix fournies et enregistrements du dossier `voices/`, import d'un nouveau fichier |
+| `voices.rs` | Catalogue : voix fournies et enregistrements du dossier `voices/`, import d'un nouveau fichier, renommage |
 | `voiceprep.rs` | Prépare chaque enregistrement à cloner : mono, longues pauses raccourcies, les 25 s les plus parlées, filtre passe-haut, volume harmonisé, mise en cache. Pocket TTS prend sinon le fichier entier : 4 min ont mené à une allocation de 73 Go et à un plantage |
 | `stretch.rs` | Vitesse de lecture sans changer la hauteur de la voix : étirement temporel WSOLA en streaming, en Rust pur |
 | `audio.rs` | Lecture sans coupure entre les morceaux, pause, arrêt instantané |
@@ -142,7 +142,7 @@ Le **menu de l'icône** règle tout, sans toucher au fichier de configuration :
 - **Dictée** :
   - écrire au fil de la parole, ou tout coller au relâchement, pour les applications qui ignorent la frappe simulée ;
   - ajouter une espace après chaque dictée.
-- **Écouter un exemple**, réglages avancés (fichier), recharger, journaux, quitter.
+- **Écouter un exemple**, langue du menu (`Menu in English` / `Menu en français`), réglages avancés (fichier), recharger, journaux, quitter.
 
 Chaque choix est enregistré dans `config.toml`, en conservant les commentaires du fichier.
 

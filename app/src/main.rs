@@ -36,7 +36,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tray_icon::menu::MenuEvent;
 
 use crate::audio::AudioOut;
-use crate::config::{Config, InsertMode, Paths};
+use crate::config::{Config, InsertMode, Paths, UiLanguage};
 use crate::dictation::{Dictation, DictationOptions, DictationStatus, SharedOptions};
 use crate::reader::{Reader, SharedLanguage, SharedRecording, SharedSpeed, Status};
 use crate::tray::{Action, MenuState, Tray};
@@ -332,6 +332,7 @@ impl App {
 
     fn menu_state(&self) -> MenuState<'_> {
         MenuState {
+            ui: self.config.interface.language,
             hotkeys: &self.config.hotkeys,
             voice: &self.config.pocket.voice,
             user_voices: &self.user_voices,
@@ -360,6 +361,11 @@ impl App {
         tray.refresh(&self.menu_state());
         tray.set_status(&self.last_status, &self.dictation_status, &self.menu_state());
         self.tray = Some(tray);
+    }
+
+    /// The text in the menu language.
+    fn t(&self, french: &'static str, english: &'static str) -> &'static str {
+        self.config.interface.language.pick(french, english)
     }
 
     fn update_tray_status(&self) {
@@ -402,8 +408,10 @@ impl App {
         if let DictationStatus::Error(e) = &status {
             tracing::error!("{e}");
             show_error(&format!(
-                "La dictée n'a pas pu démarrer.\n\n{}\n\nDétails : menu de l'icône > Ouvrir les journaux.",
-                e.chars().take(600).collect::<String>()
+                "{}\n\n{}\n\n{}",
+                self.t("La dictée n'a pas pu démarrer.", "Dictation could not start."),
+                e.chars().take(600).collect::<String>(),
+                self.t("Détails : menu de l'icône > Ouvrir les journaux.", "Details: icon menu > Open the logs."),
             ));
         }
         self.dictation_status = status;
@@ -552,6 +560,7 @@ impl App {
             }
             Action::SelectVoice(voice) => self.select_voice(voice),
             Action::AddVoice => self.add_voice(),
+            Action::RenameVoice(voice) => self.rename_voice(&voice),
             Action::OpenVoicesFolder => open_file(&self.paths.voices_dir),
             Action::SetSpeed(speed) => self.set_speed(speed),
             Action::SetLanguage(language) => self.set_language(language),
@@ -565,6 +574,7 @@ impl App {
                 let trailing_space = !self.config.dictation.trailing_space;
                 self.set_dictation_options(insert, trailing_space);
             }
+            Action::ToggleUiLanguage => self.set_ui_language(self.config.interface.language.other()),
             Action::OpenConfig => open_file(&self.paths.config_file),
             Action::Reload => self.reload(),
             Action::OpenLogs => open_file(&self.paths.log_dir),
@@ -585,6 +595,15 @@ impl App {
         }
         self.refresh_tray();
         self.preview();
+    }
+
+    fn set_ui_language(&mut self, ui: UiLanguage) {
+        tracing::info!(language = ui.as_str(), "menu language selected");
+        self.config.interface.language = ui;
+        if let Err(e) = config::save(&self.paths, |doc| doc["interface"]["language"] = toml_edit::value(ui.as_str())) {
+            tracing::error!("{e:#}");
+        }
+        self.refresh_tray();
     }
 
     fn set_speed(&mut self, speed: f32) {
@@ -633,7 +652,7 @@ impl App {
             let pace = if normal {
                 "à vitesse normale".to_string()
             } else {
-                format!("à la vitesse {} fois", tray::speed_label(speed).trim_end_matches('×'))
+                format!("à la vitesse {} fois", tray::speed_label(speed, UiLanguage::French).trim_end_matches('×'))
             };
             format!("Bonjour ! Voici la voix {voice}, {pace}.")
         } else {
@@ -646,23 +665,28 @@ impl App {
     fn add_voice(&mut self) {
         let consent = rfd::MessageDialog::new()
             .set_level(rfd::MessageLevel::Info)
-            .set_title("Ajouter une voix")
-            .set_description(
+            .set_title(self.t("Ajouter une voix", "Add a voice"))
+            .set_description(self.t(
                 "SpeakWrite va imiter la voix de l'enregistrement choisi.\n\n\
                  N'utilisez que votre propre voix, ou celle d'une personne qui vous a donné son \
                  accord explicite.\n\n\
                  Pour un bon résultat : 10 à 30 secondes de parole naturelle, dans une pièce \
                  calme, sans musique, micro à 15-20 cm.",
-            )
+                "SpeakWrite will imitate the voice of the chosen recording.\n\n\
+                 Only use your own voice, or the voice of someone who gave you their explicit \
+                 consent.\n\n\
+                 For a good result: 10 to 30 seconds of natural speech, in a quiet room, with no \
+                 music, microphone at 15-20 cm.",
+            ))
             .set_buttons(rfd::MessageButtons::OkCancel)
             .show();
         if !matches!(consent, rfd::MessageDialogResult::Ok) {
             return;
         }
         let Some(file) = rfd::FileDialog::new()
-            .set_title("Choisir un enregistrement de voix")
-            .add_filter("Enregistrements audio", &["wav", "mp3", "m4a", "flac", "ogg"])
-            .add_filter("Voix exportée (pocket-tts)", &["safetensors"])
+            .set_title(self.t("Choisir un enregistrement de voix", "Choose a voice recording"))
+            .add_filter(self.t("Enregistrements audio", "Audio recordings"), &["wav", "mp3", "m4a", "flac", "ogg"])
+            .add_filter(self.t("Voix exportée (pocket-tts)", "Exported voice (pocket-tts)"), &["safetensors"])
             .pick_file()
         else {
             return;
@@ -673,7 +697,43 @@ impl App {
                 self.user_voices = voices::user_voices(&self.paths);
                 self.select_voice(entry.value);
             }
-            Err(e) => show_error(&format!("Impossible d'ajouter cette voix :\n{e:#}")),
+            Err(e) => show_error(&format!("{}\n{e:#}", self.t("Impossible d'ajouter cette voix :", "Cannot add this voice:"))),
+        }
+    }
+
+    /// rfd has no text input: the save dialog, opened on the voices folder, asks for the new name.
+    fn rename_voice(&mut self, voice: &str) {
+        let label = voices::label_of(voice);
+        let Some(chosen) = rfd::FileDialog::new()
+            .set_title(match self.config.interface.language {
+                UiLanguage::French => format!("Renommer la voix « {label} »"),
+                UiLanguage::English => format!("Rename the voice \"{label}\""),
+            })
+            .set_directory(&self.paths.voices_dir)
+            .set_file_name(&label)
+            .save_file()
+        else {
+            return;
+        };
+        let Some(new_name) = chosen.file_name().map(|name| name.to_string_lossy().into_owned()) else {
+            return;
+        };
+        match voices::rename(&self.paths, voice, &new_name) {
+            Ok(entry) => {
+                tracing::info!(from = %voice, to = %entry.value, "voice renamed");
+                self.user_voices = voices::user_voices(&self.paths);
+                // The running server already holds the voice; the new path is used at its next start.
+                if self.config.pocket.voice == voice {
+                    self.config.pocket.voice = entry.value.clone();
+                    if let Err(e) =
+                        config::save(&self.paths, |doc| doc["pocket"]["voice"] = toml_edit::value(entry.value.as_str()))
+                    {
+                        tracing::error!("{e:#}");
+                    }
+                }
+                self.refresh_tray();
+            }
+            Err(e) => show_error(&format!("{}\n{e:#}", self.t("Impossible de renommer cette voix :", "Cannot rename this voice:"))),
         }
     }
 
@@ -686,7 +746,10 @@ impl App {
                 return;
             }
             Status::SaveFailed(e) => {
-                show_error(&format!("La lecture n'a pas pu être enregistrée en MP3.\n\n{e}"));
+                show_error(&format!(
+                    "{}\n\n{e}",
+                    self.t("La lecture n'a pas pu être enregistrée en MP3.", "The reading could not be saved as MP3.")
+                ));
                 return;
             }
             _ => {}
@@ -705,8 +768,10 @@ impl App {
         if let Some(e) = error {
             tracing::error!("{e}");
             show_error(&format!(
-                "Le moteur de voix n'a pas pu démarrer.\n\n{}\n\nDétails : menu de l'icône > Ouvrir les journaux.",
-                e.chars().take(600).collect::<String>()
+                "{}\n\n{}\n\n{}",
+                self.t("Le moteur de voix n'a pas pu démarrer.", "The voice engine could not start."),
+                e.chars().take(600).collect::<String>(),
+                self.t("Détails : menu de l'icône > Ouvrir les journaux.", "Details: icon menu > Open the logs."),
             ));
         }
     }
@@ -741,7 +806,7 @@ impl App {
 
     fn choose_recordings_folder(&mut self) {
         let Some(folder) = rfd::FileDialog::new()
-            .set_title("Dossier des enregistrements MP3")
+            .set_title(self.t("Dossier des enregistrements MP3", "MP3 recordings folder"))
             .set_directory(self.config.recording.folder())
             .pick_folder()
         else {

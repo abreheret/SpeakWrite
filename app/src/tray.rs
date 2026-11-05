@@ -7,7 +7,7 @@ use anyhow::Result;
 use tray_icon::menu::{CheckMenuItem, IsMenuItem, Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
-use crate::config::{DictationConfig, HotkeysConfig, InsertMode, RecordingConfig};
+use crate::config::{DictationConfig, HotkeysConfig, InsertMode, RecordingConfig, UiLanguage};
 use crate::dictation::DictationStatus;
 use crate::language;
 use crate::reader::Status;
@@ -20,6 +20,8 @@ pub enum Action {
     Stop,
     SelectVoice(String),
     AddVoice,
+    /// Config value of the user voice to rename ("voices/ma_voix.wav").
+    RenameVoice(String),
     OpenVoicesFolder,
     SetSpeed(f32),
     /// `language::AUTO` or a model name.
@@ -32,6 +34,8 @@ pub enum Action {
     OpenLastRecording,
     OpenRecordingsFolder,
     ChooseRecordingsFolder,
+    /// Switches the menu between French and English.
+    ToggleUiLanguage,
     OpenConfig,
     Reload,
     OpenLogs,
@@ -40,6 +44,8 @@ pub enum Action {
 
 /// What the menu shows; it is rebuilt whenever one of these changes.
 pub struct MenuState<'a> {
+    /// Language of the menu.
+    pub ui: UiLanguage,
     pub hotkeys: &'a HotkeysConfig,
     /// Config value of the current voice ("" for the default).
     pub voice: &'a str,
@@ -57,14 +63,17 @@ pub struct MenuState<'a> {
 
 pub const SPEEDS: [f32; 11] = [0.8, 0.9, 1.0, 1.1, 1.2, 1.25, 1.3, 1.4, 1.5, 1.75, 2.0];
 
-/// "1,25×", French decimal comma.
-pub fn speed_label(speed: f32) -> String {
+/// "1,25×" in French (decimal comma), "1.25×" in English.
+pub fn speed_label(speed: f32, ui: UiLanguage) -> String {
     if (speed - 1.0).abs() < 1e-3 {
-        return "1× (normale)".to_string();
+        return ui.pick("1× (normale)", "1× (normal)").to_string();
     }
     let digits = format!("{speed:.2}");
     let digits = digits.trim_end_matches('0').trim_end_matches('.');
-    format!("{}×", digits.replace('.', ","))
+    match ui {
+        UiLanguage::French => format!("{}×", digits.replace('.', ",")),
+        UiLanguage::English => format!("{digits}×"),
+    }
 }
 
 pub struct Tray {
@@ -107,21 +116,27 @@ impl Tray {
             (Status::Starting, _) => COLOR_STARTING,
             (Status::Ready | Status::Saved(_) | Status::SaveFailed(_), _) => COLOR_READY,
         };
+        let t = |french: &'static str, english: &'static str| state.ui.pick(french, english);
+        let (hotkeys, hold) = (state.hotkeys, &state.dictation.hotkey);
         let reading_line = match reading {
-            Status::Starting => "Lecture : démarrage…".to_string(),
-            Status::Ready | Status::Saved(_) | Status::SaveFailed(_) => {
-                format!("Lecture : {} (pause {})", state.hotkeys.read, state.hotkeys.pause)
-            }
-            Status::Reading if state.paused => format!("Lecture : en pause ({} reprendre)", state.hotkeys.pause),
-            Status::Reading => "Lecture : en cours".to_string(),
-            Status::Error(_) => "Lecture : erreur".to_string(),
+            Status::Starting => t("Lecture : démarrage…", "Reading: starting…").to_string(),
+            Status::Ready | Status::Saved(_) | Status::SaveFailed(_) => match state.ui {
+                UiLanguage::French => format!("Lecture : {} (pause {})", hotkeys.read, hotkeys.pause),
+                UiLanguage::English => format!("Reading: {} (pause {})", hotkeys.read, hotkeys.pause),
+            },
+            Status::Reading if state.paused => match state.ui {
+                UiLanguage::French => format!("Lecture : en pause ({} reprendre)", hotkeys.pause),
+                UiLanguage::English => format!("Reading: paused ({} to resume)", hotkeys.pause),
+            },
+            Status::Reading => t("Lecture : en cours", "Reading: in progress").to_string(),
+            Status::Error(_) => t("Lecture : erreur", "Reading: error").to_string(),
         };
         let dictation_line = match dictation {
-            DictationStatus::Loading => "Dictée : chargement…".to_string(),
-            DictationStatus::Ready => format!("Dictée : maintenir {}", state.dictation.hotkey),
-            DictationStatus::Listening => "Dictée : écoute…".to_string(),
-            DictationStatus::Disabled => "Dictée : désactivée".to_string(),
-            DictationStatus::Error(_) => "Dictée : erreur".to_string(),
+            DictationStatus::Loading => t("Dictée : chargement…", "Dictation: loading…").to_string(),
+            DictationStatus::Ready => format!("{} {hold}", t("Dictée : maintenir", "Dictation: hold")),
+            DictationStatus::Listening => t("Dictée : écoute…", "Dictation: listening…").to_string(),
+            DictationStatus::Disabled => t("Dictée : désactivée", "Dictation: off").to_string(),
+            DictationStatus::Error(_) => t("Dictée : erreur", "Dictation: error").to_string(),
         };
         // Windows truncates tooltips at 127 characters.
         let tooltip: String = format!("SpeakWrite\n{reading_line}\n{dictation_line}").chars().take(120).collect();
@@ -151,24 +166,26 @@ impl Builder {
 fn build_menu(state: &MenuState) -> Result<(Menu, HashMap<MenuId, Action>)> {
     let mut b = Builder { actions: HashMap::new() };
     let separator = PredefinedMenuItem::separator;
+    let ui = state.ui;
+    let t = |french: &'static str, english: &'static str| ui.pick(french, english);
 
     // Voices: the user's recordings, then the built-in ones.
     let current = match state.voice.trim() {
         "" => voices::DEFAULT_FRENCH,
         voice => voice,
     };
-    let voice_menu = Submenu::new(format!("Voix : {}", voices::label_of(state.voice)), true);
+    let voice_menu = Submenu::new(format!("{} {}", t("Voix :", "Voice:"), voices::label_of(state.voice)), true);
     if state.user_voices.is_empty() {
-        voice_menu.append(&MenuItem::new("Aucune voix personnelle", false, None))?;
+        voice_menu.append(&MenuItem::new(t("Aucune voix personnelle", "No personal voice"), false, None))?;
     }
     for voice in state.user_voices {
         voice_menu.append(&b.check(&voice.label, voice.value == current, Action::SelectVoice(voice.value.clone())))?;
     }
     voice_menu.append(&separator())?;
-    let builtin_menu = Submenu::new("Voix fournies par Kyutai", true);
+    let builtin_menu = Submenu::new(t("Voix fournies par Kyutai", "Voices provided by Kyutai"), true);
     for voice in voices::builtin_voices() {
         let label = if voice.value == voices::DEFAULT_FRENCH {
-            format!("{} (française)", voice.label)
+            format!("{} {}", voice.label, t("(française)", "(French)"))
         } else {
             voice.label.clone()
         };
@@ -176,18 +193,34 @@ fn build_menu(state: &MenuState) -> Result<(Menu, HashMap<MenuId, Action>)> {
     }
     voice_menu.append(&builtin_menu)?;
     voice_menu.append(&separator())?;
-    voice_menu.append(&b.item("Ajouter une voix…", Action::AddVoice))?;
-    voice_menu.append(&b.item("Ouvrir le dossier des voix", Action::OpenVoicesFolder))?;
+    voice_menu.append(&b.item(t("Ajouter une voix…", "Add a voice…"), Action::AddVoice))?;
+    if !state.user_voices.is_empty() {
+        let rename_menu = Submenu::new(t("Renommer une voix", "Rename a voice"), true);
+        for voice in state.user_voices {
+            rename_menu.append(&b.item(format!("{}…", voice.label), Action::RenameVoice(voice.value.clone())))?;
+        }
+        voice_menu.append(&rename_menu)?;
+    }
+    voice_menu.append(&b.item(t("Ouvrir le dossier des voix", "Open the voices folder"), Action::OpenVoicesFolder))?;
 
     // Reading language: detected among the configured ones, or fixed.
+    // French writes language names in lower case inside a sentence, English does not.
+    let in_sentence = |model: &str| match ui {
+        UiLanguage::French => language::label(model, ui).to_lowercase(),
+        UiLanguage::English => language::label(model, ui),
+    };
     let auto = state.language == language::AUTO;
     let language_menu = Submenu::new(
-        if auto { "Langue : automatique".to_string() } else { format!("Langue : {}", language::label(state.language)) },
+        if auto {
+            t("Langue : automatique", "Language: automatic").to_string()
+        } else {
+            format!("{} {}", t("Langue :", "Language:"), language::label(state.language, ui))
+        },
         true,
     );
-    let auto_labels: Vec<String> = state.auto_languages.iter().map(|l| language::label(l).to_lowercase()).collect();
+    let auto_labels: Vec<String> = state.auto_languages.iter().map(|l| in_sentence(l)).collect();
     language_menu.append(&b.check(
-        format!("Automatique ({})", auto_labels.join(", ")),
+        format!("{} ({})", t("Automatique", "Automatic"), auto_labels.join(", ")),
         auto,
         Action::SetLanguage(language::AUTO.to_string()),
     ))?;
@@ -198,14 +231,14 @@ fn build_menu(state: &MenuState) -> Result<(Menu, HashMap<MenuId, Action>)> {
     }
     for name in fixed {
         language_menu.append(&b.check(
-            format!("Toujours en {}", language::label(name).to_lowercase()),
+            format!("{} {}", t("Toujours en", "Always in"), in_sentence(name)),
             name == state.language,
             Action::SetLanguage(name.to_string()),
         ))?;
     }
 
     // Speeds: presets, plus the current value if it was set by hand to something else.
-    let speed_menu = Submenu::new(format!("Vitesse : {}", speed_label(state.speed)), true);
+    let speed_menu = Submenu::new(format!("{} {}", t("Vitesse :", "Speed:"), speed_label(state.speed, ui)), true);
     let mut speeds = SPEEDS.to_vec();
     if !speeds.iter().any(|s| (s - state.speed).abs() < 1e-3) {
         speeds.push(state.speed);
@@ -213,82 +246,95 @@ fn build_menu(state: &MenuState) -> Result<(Menu, HashMap<MenuId, Action>)> {
     }
     for speed in speeds {
         let checked = (speed - state.speed).abs() < 1e-3;
-        speed_menu.append(&b.check(speed_label(speed), checked, Action::SetSpeed(speed)))?;
+        speed_menu.append(&b.check(speed_label(speed, ui), checked, Action::SetSpeed(speed)))?;
     }
 
     // Dictation: how the text is inserted.
     let dictation = state.dictation;
     let dictation_menu = Submenu::new(
         if dictation.enabled {
-            format!("Dictée : maintenir {}", dictation.hotkey)
+            format!("{} {}", t("Dictée : maintenir", "Dictation: hold"), dictation.hotkey)
         } else {
-            "Dictée : désactivée".to_string()
+            t("Dictée : désactivée", "Dictation: off").to_string()
         },
         true,
     );
     dictation_menu.append(&b.check(
-        "Écrire au fil de la parole",
+        t("Écrire au fil de la parole", "Type while speaking"),
         dictation.insert == InsertMode::Type,
         Action::SetInsertMode(InsertMode::Type),
     ))?;
     dictation_menu.append(&b.check(
-        "Coller tout au relâchement",
+        t("Coller tout au relâchement", "Paste everything on release"),
         dictation.insert == InsertMode::Paste,
         Action::SetInsertMode(InsertMode::Paste),
     ))?;
     dictation_menu.append(&separator())?;
     dictation_menu.append(&b.check(
-        "Espace après chaque dictée",
+        t("Espace après chaque dictée", "Space after each dictation"),
         dictation.trailing_space,
         Action::ToggleTrailingSpace,
     ))?;
 
     // MP3 recording of readings.
     let recording_menu = Submenu::new(
-        if state.recording.enabled { "Enregistrement MP3 : activé" } else { "Enregistrement MP3" },
+        if state.recording.enabled {
+            t("Enregistrement MP3 : activé", "MP3 recording: on")
+        } else {
+            t("Enregistrement MP3", "MP3 recording")
+        },
         true,
     );
     recording_menu.append(&b.check(
-        "Enregistrer chaque lecture en MP3",
+        t("Enregistrer chaque lecture en MP3", "Save every reading as MP3"),
         state.recording.enabled,
         Action::ToggleRecording,
     ))?;
     recording_menu.append(&b.item(
-        format!("Lire et enregistrer la sélection ({})", state.hotkeys.save),
+        format!("{} ({})", t("Lire et enregistrer la sélection", "Read and save the selection"), state.hotkeys.save),
         Action::ReadAndSave,
     ))?;
     recording_menu.append(&separator())?;
     let last_label = match state.last_recording.and_then(Path::file_name) {
-        Some(name) => format!("Ouvrir : {}", name.to_string_lossy()),
-        None => "Ouvrir le dernier enregistrement".to_string(),
+        Some(name) => format!("{} {}", t("Ouvrir :", "Open:"), name.to_string_lossy()),
+        None => t("Ouvrir le dernier enregistrement", "Open the last recording").to_string(),
     };
     let last = b.item(last_label, Action::OpenLastRecording);
     last.set_enabled(state.last_recording.is_some());
     recording_menu.append(&last)?;
-    recording_menu.append(&b.item("Ouvrir le dossier des enregistrements", Action::OpenRecordingsFolder))?;
-    recording_menu.append(&b.item("Choisir le dossier…", Action::ChooseRecordingsFolder))?;
+    recording_menu.append(&b.item(
+        t("Ouvrir le dossier des enregistrements", "Open the recordings folder"),
+        Action::OpenRecordingsFolder,
+    ))?;
+    recording_menu.append(&b.item(t("Choisir le dossier…", "Choose the folder…"), Action::ChooseRecordingsFolder))?;
 
+    let pause_label = if state.paused { t("Reprendre la lecture", "Resume reading") } else { "Pause" };
     let items: Vec<Box<dyn IsMenuItem>> = vec![
-        Box::new(b.item(format!("Lire la sélection ({})", state.hotkeys.read), Action::Read)),
         Box::new(b.item(
-            format!("{} ({})", if state.paused { "Reprendre la lecture" } else { "Pause" }, state.hotkeys.pause),
-            Action::TogglePause,
+            format!("{} ({})", t("Lire la sélection", "Read the selection"), state.hotkeys.read),
+            Action::Read,
         )),
-        Box::new(b.item(format!("Arrêter la lecture ({})", state.hotkeys.stop), Action::Stop)),
+        Box::new(b.item(format!("{pause_label} ({})", state.hotkeys.pause), Action::TogglePause)),
+        Box::new(b.item(
+            format!("{} ({})", t("Arrêter la lecture", "Stop reading"), state.hotkeys.stop),
+            Action::Stop,
+        )),
         Box::new(separator()),
         Box::new(voice_menu),
         Box::new(language_menu),
         Box::new(speed_menu),
-        Box::new(b.item("Écouter un exemple", Action::Preview)),
+        Box::new(b.item(t("Écouter un exemple", "Play a sample"), Action::Preview)),
         Box::new(recording_menu),
         Box::new(separator()),
         Box::new(dictation_menu),
         Box::new(separator()),
-        Box::new(b.item("Réglages avancés (fichier)…", Action::OpenConfig)),
-        Box::new(b.item("Recharger la configuration", Action::Reload)),
-        Box::new(b.item("Ouvrir les journaux", Action::OpenLogs)),
+        // Written in the other language, so that someone who cannot read this one finds it.
+        Box::new(b.item(t("Menu in English", "Menu en français"), Action::ToggleUiLanguage)),
+        Box::new(b.item(t("Réglages avancés (fichier)…", "Advanced settings (file)…"), Action::OpenConfig)),
+        Box::new(b.item(t("Recharger la configuration", "Reload the configuration"), Action::Reload)),
+        Box::new(b.item(t("Ouvrir les journaux", "Open the logs"), Action::OpenLogs)),
         Box::new(separator()),
-        Box::new(b.item("Quitter", Action::Quit)),
+        Box::new(b.item(t("Quitter", "Quit"), Action::Quit)),
     ];
     let menu = Menu::new();
     for item in &items {
@@ -337,9 +383,11 @@ mod tests {
 
     #[test]
     fn speed_labels() {
-        assert_eq!(speed_label(1.0), "1× (normale)");
-        assert_eq!(speed_label(1.25), "1,25×");
-        assert_eq!(speed_label(0.8), "0,8×");
-        assert_eq!(speed_label(2.0), "2×");
+        assert_eq!(speed_label(1.0, UiLanguage::French), "1× (normale)");
+        assert_eq!(speed_label(1.25, UiLanguage::French), "1,25×");
+        assert_eq!(speed_label(0.8, UiLanguage::French), "0,8×");
+        assert_eq!(speed_label(2.0, UiLanguage::French), "2×");
+        assert_eq!(speed_label(1.0, UiLanguage::English), "1× (normal)");
+        assert_eq!(speed_label(1.25, UiLanguage::English), "1.25×");
     }
 }
