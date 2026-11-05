@@ -1,0 +1,29 @@
+[project]
+name = "speakwrite-tts-kyutai-spike"
+version = "0.0.0"
+description = "Spike: Kyutai TTS 1.6B (en/fr) reference scripts for SpeakWrite"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy",
+    "sounddevice",
+    "sphn",
+    "huggingface_hub",
+    # Windows / Linux (NVIDIA GPU): PyTorch implementation -> tts_pytorch.py
+    "moshi==0.2.11; sys_platform != 'darwin'",
+    "torch; sys_platform != 'darwin'",
+    # macOS (Apple silicon): MLX implementation -> tts_mlx.py
+    "moshi_mlx==0.2.12; sys_platform == 'darwin'",
+]
+
+[tool.uv]
+package = false
+
+# PyPI only ships CPU builds of torch for Windows: take the CUDA 12.6 build
+# from the PyTorch index there. Linux x86_64 wheels on PyPI already embed CUDA.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu126", marker = "sys_platform == 'win32'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true

@@ -1,0 +1,1 @@
+Bonjour ! Ceci est un essai de lecture à voix haute. Quand je sélectionne un passage et que j'appuie sur F9, l'ordinateur doit le lire de façon naturelle, avec une bonne intonation. Les chiffres, comme 2026 ou 3,5 %, et les sigles, comme la SNCF, sont souvent les plus difficiles.

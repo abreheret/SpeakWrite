@@ -1,0 +1,4 @@
+[env]
+# CMake 4 dropped support for cmake_minimum_required < 3.5, still used by some C/C++
+# dependencies (sentencepiece, opus).
+CMAKE_POLICY_VERSION_MINIMUM = "3.5"

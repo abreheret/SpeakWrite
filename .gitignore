@@ -1,0 +1,20 @@
+# Rust
+target/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Generated audio, transcripts and logs
+spikes/audio/
+*.log
+
+# Personal voice recordings (biometric data: never commit)
+spikes/voice/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

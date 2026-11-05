@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = ["app"]
+# Spikes are standalone experiments with their own Cargo.lock.
+exclude = ["spikes"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+authors = ["Amaury Bréhéret <abreheret@gmail.com>"]
+
+# Dependencies optimised even in debug builds: model inference, audio decoding and the
+# time-stretch are unusably slow otherwise.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

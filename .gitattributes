@@ -1,0 +1,11 @@
+* text=auto
+
+# Shell scripts must keep LF to run on Linux/macOS; batch files need CRLF.
+*.sh  text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+*.wav binary
+*.mp3 binary
+*.safetensors binary
