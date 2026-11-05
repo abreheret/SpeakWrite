@@ -84,6 +84,8 @@ Organisation de `app/src` :
 
 ### Compiler et lancer
 
+**Guide pas à pas, d'une machine vierge jusqu'au premier lancement : [INSTALL.fr.md](INSTALL.fr.md)**. Il couvre les outils, la compilation, les modèles téléchargés, la voix personnelle et les problèmes fréquents.
+
 Les scripts activent tout seuls l'accélération graphique de la dictée : CUDA si `nvcc` est présent, Metal sous macOS, processeur sinon.
 
 ```sh
@@ -97,12 +99,12 @@ Sans script : `cargo build --release -p speakwrite --features cuda`, ou `--featu
 Prérequis :
 - Rust ≥ 1.88 et CMake ;
 - Windows : Visual Studio Build Tools (C++) ; CUDA Toolkit 12.x pour la dictée sur la carte graphique ;
-- Linux : `libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libasound2-dev`.
+- Linux : `build-essential cmake pkg-config libssl-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libasound2-dev`.
 
 Au premier lancement, l'app :
 1. crée le fichier de configuration ;
 2. télécharge le binaire officiel `pocket-tts` (version v4.0.1, empreinte SHA-256 vérifiée) ;
-3. le démarre en serveur local, un par langue de lecture (français, puis anglais) ; chacun télécharge les poids de son modèle, environ 250 Mo ;
+3. le démarre en serveur local, un par langue de lecture (français, puis anglais) ; chacun télécharge les poids de son modèle, environ 430 Mo ;
 4. télécharge le modèle de dictée Kyutai STT, environ 2,4 Go, depuis le cache Hugging Face.
 
 Couleurs de l'icône :

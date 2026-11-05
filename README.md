@@ -84,6 +84,8 @@ Layout of `app/src`:
 
 ### Build and run
 
+**Step-by-step guide, from a clean machine to the first launch: [INSTALL.md](INSTALL.md)**. It covers the tools, the build, the downloaded models, your own voice and common problems.
+
 The scripts enable GPU acceleration for dictation automatically: CUDA when `nvcc` is found, Metal on macOS, CPU otherwise.
 
 ```sh
@@ -97,12 +99,12 @@ Without the scripts: `cargo build --release -p speakwrite --features cuda`, or `
 Requirements:
 - Rust ≥ 1.88 and CMake;
 - Windows: Visual Studio Build Tools (C++); CUDA Toolkit 12.x for GPU dictation;
-- Linux: `libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libasound2-dev`.
+- Linux: `build-essential cmake pkg-config libssl-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libasound2-dev`.
 
 On first launch, the app:
 1. creates the configuration file;
 2. downloads the official `pocket-tts` binary (release v4.0.1, SHA-256 verified);
-3. starts one local server per reading language (French, then English), each downloading its model weights (about 250 MB);
+3. starts one local server per reading language (French, then English), each downloading its model weights (about 430 MB);
 4. downloads the Kyutai STT dictation model (about 2.4 GB) into the Hugging Face cache.
 
 Icon colors:
