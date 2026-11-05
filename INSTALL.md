@@ -23,7 +23,7 @@ Nothing has to be downloaded by hand, and no account is needed, except to read w
 | | Windows | Linux | macOS |
 |---|---|---|---|
 | System | Windows 10 or 11, x64 | x86_64 or aarch64 | Intel or Apple silicon |
-| Status | ✅ Tested | ⏳ Untested | ⏳ Untested |
+| Status | ✅ Tested | ⏳ Untested | ✅ Tested (Apple silicon) |
 | Dictation on the GPU | NVIDIA (CUDA) | NVIDIA (CUDA) | Apple silicon (Metal) |
 
 Windows on ARM is not supported: there is no pocket-tts binary for it.
@@ -93,6 +93,20 @@ brew install cmake
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
+The Rust installer puts `cargo` and `rustc` in `~/.cargo/bin`, which is not yet on the `PATH` of the current terminal. Load it, then check:
+
+```sh
+source "$HOME/.cargo/env"
+rustc --version   # 1.88 or newer
+cargo --version
+```
+
+If `cargo` is still not found in a new terminal, add the line to your shell configuration (zsh is the default shell on macOS):
+
+```sh
+echo 'source "$HOME/.cargo/env"' >> ~/.zshrc
+```
+
 On Apple silicon, dictation uses Metal automatically.
 
 ## 3. Getting the code and building
@@ -102,6 +116,12 @@ git clone https://github.com/abreheret/SpeakWrite.git
 cd SpeakWrite
 scripts\build.cmd          # Windows
 ./scripts/build.sh         # Linux, macOS
+```
+
+On Linux and macOS, if the terminal answers `permission denied: ./scripts/build.sh`, make the script executable, then run it again:
+
+```sh
+chmod +x scripts/build.sh
 ```
 
 The scripts pick the acceleration themselves:
@@ -201,6 +221,42 @@ On Windows, the release executable has no console. To see its output, pipe it:
 | Dictation types nothing into some windows (Windows) | Windows running as administrator reject simulated keystrokes. Run SpeakWrite as administrator too, or use paste mode (`Dictée` → `Coller tout au relâchement`) |
 | Linux: no icon | GNOME needs the AppIndicator extension. On Wayland, global hotkeys and simulated typing depend on the desktop; X11 works |
 | macOS: hotkeys or dictation do nothing | Allow SpeakWrite in System Settings → Privacy & Security: "Accessibility", "Input Monitoring", "Microphone" |
+| macOS: `ld: tapi error: malformed file` … `unknown architecture` | The Command Line Tools linker is older than the newest SDK installed: see below |
+
+### macOS: `tapi error: malformed file` when linking
+
+The build fails with errors like:
+
+```
+ld: multiple errors: tapi error: malformed file
+/Library/Developer/CommandLineTools/SDKs/MacOSX27.0.sdk/usr/lib/libSystem.B.tbd:4:20: error: unknown architecture
+```
+
+By default the build uses the newest SDK in `/Library/Developer/CommandLineTools/SDKs/`, here `MacOSX27.0.sdk`. The linker (`ld`) installed with it is older and does not understand that SDK. The project code is not at fault.
+
+**Fix:** update the Command Line Tools so that the linker matches the SDK:
+
+```sh
+softwareupdate --list      # then install the Command Line Tools update offered
+```
+
+**Workaround:** build against an older SDK. List the available ones, then point `SDKROOT` to one, for example 26.5:
+
+```sh
+ls /Library/Developer/CommandLineTools/SDKs/
+export SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk
+./scripts/build.sh
+```
+
+`export` only applies to the current terminal. To keep it, add the line to `~/.zshrc`:
+
+```sh
+echo 'export SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk' >> ~/.zshrc
+```
+
+Remove that line once the Command Line Tools are updated, otherwise the build stays on the old SDK.
+
+### Logs
 
 The logs are in `logs/`, next to the pocket-tts binary (section 4):
 - `speakwrite.log.<date>` for the app;

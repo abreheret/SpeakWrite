@@ -17,9 +17,9 @@ Phase 4: **polish**.
 
 | Component | Status | Windows | Linux | macOS |
 |---|---|---|---|---|
-| Reading: F9 read, F10 pause, Shift+F10 stop (Pocket TTS, cloned voice) | ✅ Working | ✅ | ⏳ Untested | ⏳ Untested |
+| Reading: F9 read, F10 pause, Shift+F10 stop (Pocket TTS, cloned voice) | ✅ Working | ✅ | ⏳ Untested | ✅ |
 | MP3 recording of readings (Shift+F9, or every reading) | ✅ Working | ✅ | ⏳ | ⏳ |
-| Dictation: hold F8 (Kyutai STT, streaming) | ✅ Working | ✅ CUDA | ⏳ (CUDA / CPU) | ⏳ (Metal) |
+| Dictation: hold F8 (Kyutai STT, streaming) | ✅ Working | ✅ CUDA | ⏳ (CUDA / CPU) | ✅ Metal |
 | Spike: Kyutai TTS 1.6B `tts-1.6b-en_fr` (Python) | ✅ Validated | ✅ CUDA | ⏳ (CUDA) | ⏳ (MLX) |
 
 `legacy/` holds the previous prototype (AutoHotkey + PowerShell + edge-tts, Windows only).

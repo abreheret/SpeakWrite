@@ -17,9 +17,9 @@ Phase 4 : **finitions**.
 
 | Brique | Statut | Windows | Linux | macOS |
 |---|---|---|---|---|
-| Lecture : F9 lire, F10 pause, Maj+F10 arrêter (Pocket TTS, voix clonée) | ✅ Fonctionne | ✅ | ⏳ Non testée | ⏳ Non testée |
+| Lecture : F9 lire, F10 pause, Maj+F10 arrêter (Pocket TTS, voix clonée) | ✅ Fonctionne | ✅ | ⏳ Non testée | ✅ |
 | Enregistrement MP3 des lectures (Maj+F9, ou chaque lecture) | ✅ Fonctionne | ✅ | ⏳ | ⏳ |
-| Dictée : F8 maintenu (Kyutai STT, streaming) | ✅ Fonctionne | ✅ CUDA | ⏳ (CUDA / CPU) | ⏳ (Metal) |
+| Dictée : F8 maintenu (Kyutai STT, streaming) | ✅ Fonctionne | ✅ CUDA | ⏳ (CUDA / CPU) | ✅ Metal |
 | Spike : Kyutai TTS 1.6B `tts-1.6b-en_fr` (Python) | ✅ Validé | ✅ CUDA | ⏳ (CUDA) | ⏳ (MLX) |
 
 `legacy/` contient l'ancien prototype (AutoHotkey + PowerShell + edge-tts, Windows uniquement).

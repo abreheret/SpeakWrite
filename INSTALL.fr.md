@@ -23,7 +23,7 @@ Il n'y a rien à télécharger à la main, et aucun compte n'est nécessaire, sa
 | | Windows | Linux | macOS |
 |---|---|---|---|
 | Système | Windows 10 ou 11, x64 | x86_64 ou aarch64 | Intel ou Apple silicon |
-| État | ✅ Testé | ⏳ Non testé | ⏳ Non testé |
+| État | ✅ Testé | ⏳ Non testé | ✅ Testé (Apple silicon) |
 | Dictée sur la carte graphique | NVIDIA (CUDA) | NVIDIA (CUDA) | Apple silicon (Metal) |
 
 Windows sur ARM n'est pas pris en charge : il n'existe pas de binaire pocket-tts pour cette plateforme.
@@ -93,6 +93,20 @@ brew install cmake
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
+L'installateur de Rust place `cargo` et `rustc` dans `~/.cargo/bin`, qui n'est pas encore dans le `PATH` du terminal ouvert. Le charger, puis vérifier :
+
+```sh
+source "$HOME/.cargo/env"
+rustc --version   # 1.88 ou plus récent
+cargo --version
+```
+
+Si `cargo` reste introuvable dans un nouveau terminal, ajouter la ligne à la configuration du shell (zsh est le shell par défaut sur macOS) :
+
+```sh
+echo 'source "$HOME/.cargo/env"' >> ~/.zshrc
+```
+
 Sur Apple silicon, la dictée utilise automatiquement Metal.
 
 ## 3. Récupérer et compiler
@@ -102,6 +116,12 @@ git clone https://github.com/abreheret/SpeakWrite.git
 cd SpeakWrite
 scripts\build.cmd          # Windows
 ./scripts/build.sh         # Linux, macOS
+```
+
+Sous Linux et macOS, si le terminal répond `permission denied: ./scripts/build.sh`, rendre le script exécutable, puis le relancer :
+
+```sh
+chmod +x scripts/build.sh
 ```
 
 Les scripts choisissent l'accélération eux-mêmes :
@@ -201,6 +221,42 @@ Sous Windows, l'exécutable de la version release n'a pas de console. Pour voir 
 | La dictée n'écrit rien dans certaines fenêtres (Windows) | Les fenêtres lancées en administrateur refusent la frappe simulée. Lancer SpeakWrite en administrateur aussi, ou passer en mode collage (Dictée → « Coller tout au relâchement ») |
 | Linux : pas d'icône | GNOME demande l'extension AppIndicator. Sous Wayland, les raccourcis globaux et la frappe simulée dépendent du bureau ; X11 fonctionne |
 | macOS : touches ou dictée sans effet | Autoriser SpeakWrite dans Réglages Système → Confidentialité et sécurité : « Accessibilité », « Surveillance de l'entrée », « Micro » |
+| macOS : `ld: tapi error: malformed file` … `unknown architecture` | L'éditeur de liens des Command Line Tools est plus ancien que le SDK le plus récent installé : voir ci-dessous |
+
+### macOS : `tapi error: malformed file` à l'édition de liens
+
+La compilation échoue avec des erreurs comme :
+
+```
+ld: multiple errors: tapi error: malformed file
+/Library/Developer/CommandLineTools/SDKs/MacOSX27.0.sdk/usr/lib/libSystem.B.tbd:4:20: error: unknown architecture
+```
+
+Par défaut, la compilation utilise le SDK le plus récent de `/Library/Developer/CommandLineTools/SDKs/`, ici `MacOSX27.0.sdk`. L'éditeur de liens (`ld`) installé à côté est plus ancien et ne comprend pas ce SDK. Le code du projet n'est pas en cause.
+
+**Correction :** mettre à jour les Command Line Tools pour que l'éditeur de liens corresponde au SDK :
+
+```sh
+softwareupdate --list      # puis installer la mise à jour des Command Line Tools proposée
+```
+
+**Contournement :** compiler avec un SDK plus ancien. Lister ceux disponibles, puis y faire pointer `SDKROOT`, par exemple 26.5 :
+
+```sh
+ls /Library/Developer/CommandLineTools/SDKs/
+export SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk
+./scripts/build.sh
+```
+
+`export` ne vaut que pour le terminal ouvert. Pour le garder, ajouter la ligne à `~/.zshrc` :
+
+```sh
+echo 'export SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk' >> ~/.zshrc
+```
+
+Retirer cette ligne une fois les Command Line Tools à jour, sinon la compilation reste sur l'ancien SDK.
+
+### Journaux
 
 Les journaux sont dans `logs/`, à côté du binaire pocket-tts (section 4) :
 - `speakwrite.log.<date>` pour l'application ;
