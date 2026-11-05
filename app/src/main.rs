@@ -5,6 +5,7 @@ mod audio;
 mod config;
 mod dictation;
 mod inject;
+mod language;
 mod mic;
 mod process;
 mod reader;
@@ -37,7 +38,7 @@ use tray_icon::menu::MenuEvent;
 use crate::audio::AudioOut;
 use crate::config::{Config, InsertMode, Paths};
 use crate::dictation::{Dictation, DictationOptions, DictationStatus, SharedOptions};
-use crate::reader::{Reader, SharedRecording, SharedSpeed, Status};
+use crate::reader::{Reader, SharedLanguage, SharedRecording, SharedSpeed, Status};
 use crate::tray::{Action, MenuState, Tray};
 use crate::voices::VoiceEntry;
 
@@ -70,7 +71,10 @@ fn main() {
         Some("--transcribe") => transcribe(&paths, Path::new(&args[1..].join(" "))),
         Some("--normalize") => {
             let config = load_config(&paths);
-            println!("{}", textnorm::Normalizer::new(config.pronunciation).normalize(&args[1..].join(" ")));
+            let normalizer = textnorm::Normalizer::new(config.pronunciation.clone());
+            for segment in segments_of(&config, &args[1..].join(" ")) {
+                println!("[{}] {}", segment.language, normalizer.normalize(&segment.text, &segment.language));
+            }
             Ok(())
         }
         Some(other) => Err(anyhow::anyhow!(
@@ -98,16 +102,26 @@ fn init_logging(paths: &Paths) -> WorkerGuard {
     guard
 }
 
+/// The text to read with each language's model, as the reader splits it.
+fn segments_of(config: &Config, text: &str) -> Vec<language::Segment> {
+    language::LanguageDetector::new(&config.pocket.auto_languages).split(&config.pocket.language, text)
+}
+
 /// Speaks `text` with the configured engine and reports the latency.
 fn say(paths: &Paths, text: &str) -> Result<()> {
     let config = load_config(paths);
     let audio = AudioOut::new()?;
-    let started = std::time::Instant::now();
-    let mut engine = tts::start_engine(&config, paths)?;
-    println!("engine ready in {:.1} s", started.elapsed().as_secs_f32());
+    let segments = segments_of(&config, text);
+    let mut engines = tts::Engines::new(config.clone(), paths.clone());
+    for segment in &segments {
+        let started = std::time::Instant::now();
+        if !engines.is_ready(&segment.language) {
+            engines.start(&segment.language)?;
+            println!("{} engine ready in {:.1} s", segment.language, started.elapsed().as_secs_f32());
+        }
+    }
 
-    let spoken = textnorm::Normalizer::new(config.pronunciation).normalize(text);
-    println!("text: {spoken}");
+    let normalizer = textnorm::Normalizer::new(config.pronunciation.clone());
     let started = std::time::Instant::now();
     let mut first_audio = None;
     let mut seconds = 0.0;
@@ -123,11 +137,16 @@ fn say(paths: &Paths, text: &str) -> Result<()> {
         recorded.extend_from_slice(&chunk.samples);
         audio.append(1, chunk);
     };
-    engine.synthesize(&spoken, &|| false, &mut |chunk| {
-        if let Some(chunk) = speed.process(chunk) {
-            play(chunk);
-        }
-    })?;
+    for segment in &segments {
+        let spoken = normalizer.normalize(&segment.text, &segment.language);
+        println!("[{}] {spoken}", segment.language);
+        let engine = engines.get(&segment.language).expect("started above");
+        engine.synthesize(&spoken, &|| false, &mut |chunk| {
+            if let Some(chunk) = speed.process(chunk) {
+                play(chunk);
+            }
+        })?;
+    }
     if let Some(chunk) = speed.finish() {
         play(chunk);
     }
@@ -248,6 +267,7 @@ struct App {
     config: Config,
     user_voices: Vec<VoiceEntry>,
     speed: SharedSpeed,
+    language: SharedLanguage,
     proxy: EventLoopProxy<UserEvent>,
     hotkey_manager: GlobalHotKeyManager,
     registered: Vec<HotKey>,
@@ -280,6 +300,7 @@ impl App {
         let mut app = Self {
             user_voices: voices::user_voices(&paths),
             speed: Arc::new(AtomicU32::new(config.playback.speed.to_bits())),
+            language: Arc::new(Mutex::new(config.pocket.language.clone())),
             dictation_options: Arc::new(Mutex::new(dictation_options(&config))),
             recording: Arc::new(Mutex::new(config.recording.clone())),
             last_recording: None,
@@ -314,6 +335,8 @@ impl App {
             hotkeys: &self.config.hotkeys,
             voice: &self.config.pocket.voice,
             user_voices: &self.user_voices,
+            language: &self.config.pocket.language,
+            auto_languages: &self.config.pocket.auto_languages,
             speed: self.config.playback.speed,
             dictation: &self.config.dictation,
             recording: &self.config.recording,
@@ -429,6 +452,7 @@ impl App {
             self.audio.clone(),
             self.speed.clone(),
             self.recording.clone(),
+            self.language.clone(),
             move |status| {
                 let _ = proxy.send_event(UserEvent::Status(status));
             },
@@ -530,6 +554,7 @@ impl App {
             Action::AddVoice => self.add_voice(),
             Action::OpenVoicesFolder => open_file(&self.paths.voices_dir),
             Action::SetSpeed(speed) => self.set_speed(speed),
+            Action::SetLanguage(language) => self.set_language(language),
             Action::Preview => self.preview(),
             Action::SetInsertMode(mode) => {
                 let trailing_space = self.config.dictation.trailing_space;
@@ -573,16 +598,49 @@ impl App {
         self.preview();
     }
 
+    fn set_language(&mut self, language: String) {
+        if language != self.config.pocket.language {
+            tracing::info!(%language, "reading language selected");
+            self.config.pocket.language = language.clone();
+            *self.language.lock().unwrap_or_else(|e| e.into_inner()) = language.clone();
+            if let Err(e) = config::save(&self.paths, |doc| doc["pocket"]["language"] = toml_edit::value(language.as_str())) {
+                tracing::error!("{e:#}");
+            }
+            // Engines start on demand: get the new ones loading now rather than at the next reading.
+            if let Some(reader) = &self.reader {
+                reader.launch(self.config.pocket.startup_languages());
+            }
+        }
+        self.refresh_tray();
+        match &self.reader {
+            Some(reader) if language == language::AUTO => reader.speak(
+                "Bonjour ! La langue du texte est maintenant reconnue automatiquement.\n\
+                 And when the text is written in English, it is read in English."
+                    .to_string(),
+            ),
+            _ => self.preview(),
+        }
+    }
+
+    /// A sample sentence with the current voice and speed, in the reading language.
     fn preview(&self) {
         let Some(reader) = &self.reader else { return };
         let speed = self.config.playback.speed;
-        let pace = if (speed - 1.0).abs() < 1e-3 {
-            "à vitesse normale".to_string()
-        } else {
-            format!("à la vitesse {} fois", tray::speed_label(speed).trim_end_matches('×'))
-        };
+        let normal = (speed - 1.0).abs() < 1e-3;
         let voice = voices::label_of(&self.config.pocket.voice);
-        reader.speak(format!("Bonjour ! Voici la voix {voice}, {pace}."));
+        let setting = &self.config.pocket.language;
+        let text = if setting == language::AUTO || language::base(setting) == "french" {
+            let pace = if normal {
+                "à vitesse normale".to_string()
+            } else {
+                format!("à la vitesse {} fois", tray::speed_label(speed).trim_end_matches('×'))
+            };
+            format!("Bonjour ! Voici la voix {voice}, {pace}.")
+        } else {
+            let pace = if normal { "at normal speed".to_string() } else { format!("at {speed} times the normal speed") };
+            format!("Hello! This is the voice {voice}, {pace}.")
+        };
+        reader.speak(text);
     }
 
     fn add_voice(&mut self) {
@@ -657,6 +715,7 @@ impl App {
         tracing::info!("reloading the configuration");
         self.config = load_config(&self.paths);
         self.speed.store(self.config.playback.speed.to_bits(), Ordering::Relaxed);
+        *self.language.lock().unwrap_or_else(|e| e.into_inner()) = self.config.pocket.language.clone();
         *self.dictation_options.lock().unwrap_or_else(|e| e.into_inner()) = dictation_options(&self.config);
         *self.recording.lock().unwrap_or_else(|e| e.into_inner()) = self.config.recording.clone();
         self.user_voices = voices::user_voices(&self.paths);

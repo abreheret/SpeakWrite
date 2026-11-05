@@ -9,7 +9,7 @@ A **local** desktop tool for Windows, Linux and macOS that works both ways:
 
 Both directions use the open-source models of [Kyutai](https://kyutai.org) and run on the machine, with no online service.
 
-The text normalization, built-in voice list and default model target **French**, the author's language. Kyutai's models also handle English.
+Reading detects the language of the text, line by line: French and English by default. Each language is read by its own Pocket TTS model, with the same voice, your own included. The spelling-out of numbers and the menu labels target **French**, the author's language.
 
 ## Project status
 
@@ -42,6 +42,7 @@ Rust building blocks:
 | Clipboard, simulated keystrokes | `arboard`, `enigo` |
 | Audio playback, microphone capture | `rodio`, `cpal` |
 | Voice: official local server `pocket-tts serve`, driven over HTTP | `ureq` |
+| Language of the text to read | `lingua` |
 | Dictation: STT inference | `moshi` + `candle` (CUDA / Metal / CPU) |
 | Audio decoding, MP3 encoding | `symphonia`, `mp3lame-encoder` |
 | Configuration | `serde`, `toml`, `toml_edit`, `directories` |
@@ -53,9 +54,10 @@ Layout of `app/src`:
 | `main.rs` | Event loop, hotkeys, menu, diagnostic commands |
 | `reader.rs` | Reading thread. Each request carries a generation number: a new F9 or a stop cancels the previous one |
 | `selection.rs` | Simulated Ctrl+C (Cmd+C on macOS), wait for the clipboard, restore it. Primary selection on Linux |
-| `textnorm/` | French spelling-out of numbers, times, ordinals, %, €, F1–F24 keys; pronunciation dictionary |
-| `tts/` | `TtsEngine` trait, Pocket TTS engine, verified binary download, streamed WAV reader |
-| `tray.rs` | Tray icon and menu (voices, speed, MP3, dictation), rebuilt on every change |
+| `language.rs` | Splits the text into runs of lines in one language. Short lines (titles) follow the next long line; undecidable texts use the first language |
+| `textnorm/` | French spelling-out of numbers, times, ordinals, %, €, F1–F24 keys; pronunciation dictionary. Other languages: Markdown and spaces only, their models read digits themselves |
+| `tts/` | `TtsEngine` trait, one engine per language started on demand, Pocket TTS engine, verified binary download, streamed WAV reader |
+| `tray.rs` | Tray icon and menu (voices, language, speed, MP3, dictation), rebuilt on every change |
 | `voices.rs` | Catalogue: built-in voices and recordings in the `voices/` folder, import of a new file |
 | `voiceprep.rs` | Prepares each recording for cloning: mono, long pauses shortened, the best 25 s of speech, high-pass filter, level normalization, cached. Otherwise Pocket TTS uses the whole file: 4 minutes led to a 73 GB allocation and a crash |
 | `stretch.rs` | Playback speed without pitch change: streaming WSOLA time-stretch, pure Rust |
@@ -100,7 +102,7 @@ Requirements:
 On first launch, the app:
 1. creates the configuration file;
 2. downloads the official `pocket-tts` binary (release v4.0.1, SHA-256 verified);
-3. starts it as a local server, which in turn downloads the model weights (about 250 MB);
+3. starts one local server per reading language (French, then English), each downloading its model weights (about 250 MB);
 4. downloads the Kyutai STT dictation model (about 2.4 GB) into the Hugging Face cache.
 
 Icon colors:
@@ -128,7 +130,8 @@ The **tray menu** covers everything, without editing the configuration file:
   - "Add a voice…", with a file picker;
   - "Open the voices folder".
 
-  Switching voices restarts the engine (about 3 s), then plays a sample.
+  Switching voices restarts the engines (about 3 s), then plays a sample.
+- **Language**: automatic (French and English, line by line), or always one language. Applied at once, with a sample.
 - **Speed**: from 0.8× to 2×, applied at once, with a sample.
 - **MP3 recording**:
   - save every F9 reading too;
@@ -157,9 +160,10 @@ The file is commented. It sets:
 - the playback speed (`[playback] speed`);
 - MP3 recording (`[recording]`: on/off, folder, bitrate from 32 to 160 kbit/s);
 - dictation (`[dictation]`: key, insertion mode, device, model);
-- the language and the voice.
+- the reading language (`[pocket] language`: `"auto"` or a fixed language) and the languages detected in `"auto"` mode (`auto_languages`, French and English by default; also German, Spanish, Italian, Portuguese and Dutch). Each language runs its own model, 0.5 to 0.8 GB of memory;
+- the voice.
 
-It also holds the pronunciation dictionary, in the `[pronunciation]` section.
+It also holds the pronunciation dictionary, in the `[pronunciation]` section, applied to French texts.
 
 **To read with your own voice**:
 1. Accept the terms on [`kyutai/pocket-tts`](https://huggingface.co/kyutai/pocket-tts), then run `uvx --from huggingface_hub hf auth login`.
@@ -170,7 +174,7 @@ Only use your own voice, or the voice of someone who gave explicit consent.
 ### Diagnostics
 
 ```sh
-speakwrite --normalize "Appuie sur F9 : 3,5 % en 2026"   # prints the text as it will be read
+speakwrite --normalize "Appuie sur F9 : 3,5 % en 2026"   # prints the text as it will be read, with its language
 speakwrite --say "Bonjour"                               # speaks a sentence and measures latency
 speakwrite --transcribe audio.wav                        # runs a file through the dictation pipeline
 SPEAKWRITE_SAY_WAV=out.wav speakwrite --say "..."        # also saves the received audio (WAV)
@@ -182,7 +186,7 @@ Measurements on Windows 11, RTX 4090:
 
 | Reading (Pocket TTS, CPU, cloned voice) | Dictation (Kyutai STT, CUDA) |
 |---|---|
-| Engine ready in 3 to 5 s | Model loaded in about 1.4 s once cached |
+| Engine ready in 3 to 5 s (French), English 3 s later | Model loaded in about 1.4 s once cached |
 | First audio after about 100 ms | Words about 0.5 s after speech |
 | Generation about 6× faster than real time | Processing about 8× faster than real time; last words about 0.45 s after release |
 
@@ -257,7 +261,8 @@ French voices (`--voice`, paths relative to the [`kyutai/tts-voices`](https://hu
    - streamed Pocket TTS;
    - voice and speed from the menu;
    - pause;
-   - MP3 recording.
+   - MP3 recording;
+   - automatic language detection (French / English).
 3. ✅ **Dictation**: streamed Kyutai STT, text typed into the focused field.
 4. ⏸️ **TTS 1.6B in the app**: blocked in pure Rust. The released model uses `demux_second_stream` and a weights-per-step schedule that the `moshi` crate 0.6.1 does not implement, and Kyutai publishes no Rust-converted weights. Options: a Python server started by the app, or a fork of the `moshi` crate.
 5. 🔜 **Polish**
@@ -272,6 +277,7 @@ French voices (`--voice`, paths relative to the [`kyutai/tts-voices`](https://hu
 
 - SpeakWrite code: **MIT**, see [LICENSE](LICENSE).
 - MP3 encoder: LAME, through `mp3lame-encoder` / `mp3lame-sys`, **LGPL**, statically linked. The source code stays MIT, but distributing a SpeakWrite binary requires complying with the LGPL for LAME (allowing relinking with another LAME build).
+- Language detection: `lingua`, Apache-2.0.
 - `app/src/stt.rs` and `spikes/stt-rs`: derived from [kyutai-labs/delayed-streams-modeling](https://github.com/kyutai-labs/delayed-streams-modeling), MIT / Apache-2.0 (license files in `spikes/stt-rs`).
 - `spikes/tts-kyutai`: adapted Kyutai scripts, MIT (license file included).
 - Kyutai models (`stt-1b-en_fr`, `tts-1.6b-en_fr`, Pocket TTS): **CC-BY 4.0**, credit Kyutai when redistributing.

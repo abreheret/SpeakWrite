@@ -13,11 +13,12 @@ use crossbeam_channel::{Receiver, Sender};
 
 use crate::audio::AudioOut;
 use crate::config::{Config, Paths, RecordingConfig};
+use crate::language::{LanguageDetector, Segment};
 use crate::recorder::{self, Mp3Writer};
 use crate::selection::SelectionReader;
 use crate::stretch::SpeedControl;
 use crate::textnorm::Normalizer;
-use crate::tts::{self, TtsEngine};
+use crate::tts::{self, Engines};
 
 #[derive(Debug, Clone)]
 pub enum Status {
@@ -37,10 +38,16 @@ pub type SharedSpeed = Arc<AtomicU32>;
 /// Recording settings shared with the UI, read at the start of each reading.
 pub type SharedRecording = Arc<Mutex<RecordingConfig>>;
 
+/// Reading language shared with the UI: `language::AUTO` or a model name, read at the start
+/// of each reading. Engines start on demand, so a change needs no restart.
+pub type SharedLanguage = Arc<Mutex<String>>;
+
 enum Request {
     /// `save`: record this reading even if recording is off.
     ReadSelection { save: bool },
     Speak(String),
+    /// Starts these languages' engines in the background, ahead of their first reading.
+    Launch(Vec<String>),
     Shutdown(Sender<()>),
 }
 
@@ -57,6 +64,7 @@ impl Reader {
         audio: Arc<AudioOut>,
         speed: SharedSpeed,
         recording: SharedRecording,
+        language: SharedLanguage,
         on_status: impl Fn(Status) + Send + 'static,
     ) -> Result<Self> {
         let (requests, rx) = crossbeam_channel::unbounded();
@@ -68,6 +76,7 @@ impl Reader {
             generation: generation.clone(),
             speed,
             recording,
+            language,
         };
         std::thread::Builder::new()
             .name("reader".into())
@@ -91,6 +100,12 @@ impl Reader {
 
     pub fn stop(&self) {
         self.cancel();
+    }
+
+    /// Starts the engines of `languages` in the background; the current reading goes on.
+    pub fn launch(&self, languages: Vec<String>) {
+        let generation = self.generation.load(Ordering::SeqCst);
+        let _ = self.requests.send((generation, Request::Launch(languages)));
     }
 
     /// Pauses or resumes the reading; `None` when nothing is being read.
@@ -122,19 +137,22 @@ struct Worker {
     generation: Arc<AtomicU64>,
     speed: SharedSpeed,
     recording: SharedRecording,
+    language: SharedLanguage,
 }
 
 impl Worker {
     fn run(self, requests: Receiver<(u64, Request)>, on_status: impl Fn(Status)) {
         on_status(Status::Starting);
-        let mut engine = match tts::start_engine(&self.config, &self.paths) {
-            Ok(engine) => engine,
-            Err(e) => {
-                tracing::error!("TTS engine failed to start: {e:#}");
-                on_status(Status::Error(format!("{e:#}")));
-                return drain_until_shutdown(requests);
-            }
-        };
+        let languages = self.config.pocket.startup_languages();
+        let detector = LanguageDetector::new(&self.config.pocket.auto_languages);
+        let mut engines = Engines::new(self.config.clone(), self.paths.clone());
+        // The first language is ready before the others start: they share downloaded files.
+        if let Err(e) = engines.start(&languages[0]) {
+            tracing::error!("TTS engine failed to start: {e:#}");
+            on_status(Status::Error(format!("{e:#}")));
+            return drain_until_shutdown(requests);
+        }
+        launch_all(&mut engines, &languages[1..]);
         let mut selection = match SelectionReader::new(self.config.selection.clone()) {
             Ok(selection) => selection,
             Err(e) => {
@@ -147,11 +165,18 @@ impl Worker {
         on_status(Status::Ready);
 
         for (generation, request) in requests {
-            if let Request::Shutdown(ack) = request {
-                drop(engine);
-                let _ = ack.send(());
-                return;
-            }
+            let request = match request {
+                Request::Shutdown(ack) => {
+                    drop(engines);
+                    let _ = ack.send(());
+                    return;
+                }
+                Request::Launch(languages) => {
+                    launch_all(&mut engines, &languages);
+                    continue;
+                }
+                request => request,
+            };
             if generation != self.generation.load(Ordering::SeqCst) {
                 continue; // superseded while queued
             }
@@ -168,41 +193,62 @@ impl Worker {
                         continue;
                     }
                 },
-                Request::Shutdown(_) => unreachable!("handled above"),
+                Request::Launch(_) | Request::Shutdown(_) => unreachable!("handled above"),
             };
             // Previews are never recorded; selections when asked or when recording is on.
             let recording = self.recording.lock().unwrap_or_else(|e| e.into_inner()).clone();
             let record = (force_save || recording.enabled).then_some(&recording);
+            let setting = self.language.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            let segments = detector.split(&setting, &text);
             on_status(Status::Reading);
-            self.read(engine.as_mut(), &normalizer, generation, &text, record, &on_status);
+            let reading = Reading { generation, text: &text, segments, record, fallback: &languages[0] };
+            self.read(&mut engines, &normalizer, reading, &on_status);
             on_status(Status::Ready);
         }
     }
 
-    fn read(
-        &self,
-        engine: &mut dyn TtsEngine,
-        normalizer: &Normalizer,
-        generation: u64,
-        text: &str,
-        record: Option<&RecordingConfig>,
-        on_status: &dyn Fn(Status),
-    ) {
-        let spoken = normalizer.normalize(text);
+    fn read(&self, engines: &mut Engines, normalizer: &Normalizer, reading: Reading, on_status: &dyn Fn(Status)) {
+        let Reading { generation, text, segments, record, fallback } = reading;
         let speed = f32::from_bits(self.speed.load(Ordering::Relaxed));
-        tracing::info!(chars = text.len(), speed, record = record.is_some(), "reading");
-        tracing::debug!(%spoken, "normalized text");
+        tracing::info!(chars = text.len(), speed, record = record.is_some(), segments = segments.len(), "reading");
         let is_cancelled = || self.generation.load(Ordering::SeqCst) != generation;
         let mut stretch = SpeedControl::new(speed);
         let mut recording = Recording::new(record, text);
-        let result = engine.synthesize(&spoken, &is_cancelled, &mut |chunk| {
-            if let Some(chunk) = stretch.process(chunk) {
-                recording.write(&chunk);
-                self.audio.append(generation, chunk);
+        let mut result = Ok(());
+        for (i, segment) in segments.iter().enumerate() {
+            if is_cancelled() {
+                break;
             }
-        });
-        if let Err(e) = &result {
-            tracing::error!("synthesis failed: {e:#}");
+            // First use of a language takes a few seconds. Only shown before any audio: a
+            // status change would also clear the pause indicator.
+            let starting = i == 0 && !engines.is_ready(&segment.language);
+            if starting {
+                on_status(Status::Starting);
+            }
+            let language = match engines.start(&segment.language) {
+                Ok(()) => segment.language.as_str(),
+                Err(e) => {
+                    tracing::error!(language = %segment.language, "TTS engine failed to start, reading in {fallback}: {e:#}");
+                    fallback
+                }
+            };
+            if starting {
+                on_status(Status::Reading);
+            }
+            let Some(engine) = engines.get(language) else { continue };
+            let spoken = normalizer.normalize(&segment.text, language);
+            tracing::info!(language, chars = segment.text.len(), "segment");
+            tracing::debug!(%spoken, "normalized text");
+            result = engine.synthesize(&spoken, &is_cancelled, &mut |chunk| {
+                if let Some(chunk) = stretch.process(chunk) {
+                    recording.write(&chunk);
+                    self.audio.append(generation, chunk);
+                }
+            });
+            if let Err(e) = &result {
+                tracing::error!("synthesis failed: {e:#}");
+                break;
+            }
         }
         if let Some(chunk) = stretch.finish() {
             recording.write(&chunk);
@@ -225,6 +271,25 @@ impl Worker {
         // Synthesis runs ahead of playback: wait for the end of the audio.
         while !is_cancelled() && self.audio.is_playing() {
             std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+}
+
+struct Reading<'a> {
+    generation: u64,
+    /// As selected, for the MP3 file name.
+    text: &'a str,
+    segments: Vec<Segment>,
+    record: Option<&'a RecordingConfig>,
+    /// Reads the segments whose engine cannot start.
+    fallback: &'a str,
+}
+
+/// Starts engines without waiting for them; a failure only costs that language.
+fn launch_all(engines: &mut Engines, languages: &[String]) {
+    for language in languages {
+        if let Err(e) = engines.launch(language) {
+            tracing::error!(%language, "cannot start the TTS engine: {e:#}");
         }
     }
 }

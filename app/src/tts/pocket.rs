@@ -18,18 +18,23 @@ const STARTUP_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 
 pub struct PocketTts {
     child: Child,
+    language: String,
     base_url: String,
     agent: ureq::Agent,
+    log_path: PathBuf,
+    ready: bool,
 }
 
 impl PocketTts {
-    pub fn start(config: &PocketConfig, paths: &Paths) -> Result<Self> {
+    /// Starts the server of `language` (a model name, see `pocket-tts serve --help`)
+    /// without waiting for it to load: see [`TtsEngine::wait_ready`].
+    pub fn spawn(config: &PocketConfig, language: &str, paths: &Paths) -> Result<Self> {
         let binary = match config.binary.trim() {
             "" => install::ensure_binary(&paths.bin_dir)?,
             path => PathBuf::from(path),
         };
         let port = free_port()?;
-        let log_path = paths.log_dir.join("pocket-tts.log");
+        let log_path = paths.log_dir.join(format!("pocket-tts-{language}.log"));
         let log = std::fs::File::create(&log_path)
             .with_context(|| format!("cannot create {}", log_path.display()))?;
 
@@ -37,7 +42,7 @@ impl PocketTts {
         command
             .arg("serve")
             .args(["--host", "127.0.0.1", "--port", &port.to_string()])
-            .args(["--language", &config.language]);
+            .args(["--language", language]);
         if let Some(voice) = config.voice_argument(paths)? {
             tracing::info!(voice = %voice.to_string_lossy(), "voice");
             command.arg("--default-voice").arg(&voice);
@@ -46,7 +51,7 @@ impl PocketTts {
             .stdin(Stdio::null())
             .stdout(Stdio::from(log.try_clone()?))
             .stderr(Stdio::from(log));
-        tracing::info!(binary = %binary.display(), port, language = %config.language, "starting pocket-tts");
+        tracing::info!(binary = %binary.display(), port, language, "starting pocket-tts");
         let child = crate::process::spawn_tied(&mut command)
             .with_context(|| format!("cannot start {}", binary.display()))?;
 
@@ -54,31 +59,47 @@ impl PocketTts {
             .timeout_connect(Some(Duration::from_secs(2)))
             .build()
             .new_agent();
-        let mut tts = Self { child, base_url: format!("http://127.0.0.1:{port}"), agent };
-        tts.wait_ready(&log_path)?;
-        tracing::info!("pocket-tts ready");
-        Ok(tts)
-    }
-
-    fn wait_ready(&mut self, log_path: &Path) -> Result<()> {
-        let deadline = Instant::now() + STARTUP_TIMEOUT;
-        let health = format!("{}/health", self.base_url);
-        loop {
-            if let Some(status) = self.child.try_wait()? {
-                bail!("pocket-tts exited ({status}):\n{}", log_tail(log_path));
-            }
-            if self.agent.get(&health).call().is_ok() {
-                return Ok(());
-            }
-            if Instant::now() > deadline {
-                bail!("pocket-tts not ready after {STARTUP_TIMEOUT:?}:\n{}", log_tail(log_path));
-            }
-            std::thread::sleep(Duration::from_millis(250));
-        }
+        Ok(Self {
+            child,
+            language: language.to_string(),
+            base_url: format!("http://127.0.0.1:{port}"),
+            agent,
+            log_path,
+            ready: false,
+        })
     }
 }
 
 impl TtsEngine for PocketTts {
+    fn wait_ready(&mut self) -> Result<()> {
+        if self.ready {
+            return Ok(());
+        }
+        let deadline = Instant::now() + STARTUP_TIMEOUT;
+        let health = format!("{}/health", self.base_url);
+        loop {
+            if let Some(status) = self.child.try_wait()? {
+                bail!("pocket-tts ({}) exited ({status}):\n{}", self.language, log_tail(&self.log_path));
+            }
+            if self.agent.get(&health).call().is_ok() {
+                tracing::info!(language = %self.language, "pocket-tts ready");
+                self.ready = true;
+                return Ok(());
+            }
+            if Instant::now() > deadline {
+                bail!(
+                    "pocket-tts ({}) not ready after {STARTUP_TIMEOUT:?}:\n{}",
+                    self.language,
+                    log_tail(&self.log_path)
+                );
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+    }
+
+    fn is_ready(&self) -> bool {
+        self.ready
+    }
     fn synthesize(
         &mut self,
         text: &str,

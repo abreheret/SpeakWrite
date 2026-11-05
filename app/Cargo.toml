@@ -25,6 +25,8 @@ enigo = "0.6"
 flate2 = "1"
 global-hotkey = "0.9"
 hf-hub = "0.4"
+# Only the languages Pocket TTS can read (each model adds about 2.5 MB).
+lingua = { version = "1.8", default-features = false, features = ["dutch", "english", "french", "german", "italian", "portuguese", "spanish"] }
 moshi = "0.6.1"
 mp3lame-encoder = "0.3"
 rfd = "0.17"

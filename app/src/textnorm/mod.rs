@@ -20,7 +20,13 @@ impl Normalizer {
         Self { pronunciation }
     }
 
-    pub fn normalize(&self, text: &str) -> String {
+    /// Prepares `text` for the model of `language`. Only French is spelled out: the other
+    /// models read digits and symbols themselves (checked for English).
+    pub fn normalize(&self, text: &str, language: &str) -> String {
+        if crate::language::base(language) == "french" { self.french(text) } else { plain(text) }
+    }
+
+    fn french(&self, text: &str) -> String {
         let chars: Vec<char> = text.chars().collect();
         let mut out = String::with_capacity(text.len() + text.len() / 4);
         let mut i = 0;
@@ -82,6 +88,19 @@ impl Normalizer {
             .collect::<Vec<_>>()
             .join(" ")
     }
+}
+
+/// Markdown decorations and odd spaces removed, lines tidied: for languages other than French.
+fn plain(text: &str) -> String {
+    let cleaned: String = text
+        .chars()
+        .filter_map(|c| match c {
+            '*' | '`' | '#' => None,
+            '_' | '\u{a0}' | '\u{202f}' | '\t' => Some(' '),
+            c => Some(c),
+        })
+        .collect();
+    tidy_lines(&cleaned)
 }
 
 /// Appends spoken words, with spaces so they never glue to neighbouring letters or digits.
@@ -272,7 +291,7 @@ mod tests {
     fn norm(text: &str) -> String {
         let mut dict = BTreeMap::new();
         dict.insert("Kyutai".to_string(), "kiou-taï".to_string());
-        Normalizer::new(dict).normalize(text)
+        Normalizer::new(dict).normalize(text, "french")
     }
 
     #[test]
@@ -316,5 +335,21 @@ mod tests {
         assert_eq!(norm("Du **gras** et du `code`."), "Du gras et du code.");
         assert_eq!(norm("Titre\n\nUn paragraphe."), "Titre.\nUn paragraphe.");
         assert_eq!(norm("Toi & moi."), "Toi et moi.");
+    }
+
+    #[test]
+    fn other_languages_keep_digits_and_words() {
+        let mut dict = BTreeMap::new();
+        dict.insert("Kyutai".to_string(), "kiou-taï".to_string());
+        let normalizer = Normalizer::new(dict);
+        assert_eq!(
+            normalizer.normalize("Press **F9**: 3.5% faster\tby Kyutai", "english"),
+            "Press F9: 3.5% faster by Kyutai."
+        );
+        assert_eq!(
+            normalizer.normalize("Title\n\nA paragraph.", "english_2026-10"),
+            "Title.\nA paragraph."
+        );
+        assert_eq!(normalizer.normalize("F9", "french_24l"), "F neuf.");
     }
 }

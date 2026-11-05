@@ -65,19 +65,26 @@ model = "kyutai/stt-1b-en_fr-candle"
 engine = "pocket"
 
 [pocket]
-language = "french"
+# Langue de lecture : "auto" reconnaît la langue du texte, ligne par ligne, parmi
+# auto_languages. Ou une langue fixe : "french", "english", "german", "spanish",
+# "italian", "portuguese", "dutch".
+language = "auto"
+# Langues reconnues en mode "auto" ; la première sert quand le texte est trop court pour
+# trancher. Chaque langue fait tourner son propre modèle (0,5 à 0,8 Go de mémoire).
+auto_languages = ["french", "english"]
 # Voix : se choisit dans le menu de l'icône (Voix > ...), qui met à jour cette ligne.
 # - une voix fournie : "estelle", "cosette", "marius"...
 # - un enregistrement à cloner (.wav, .mp3, .m4a...) : "voices/ma_voix.wav", chemin relatif
 #   au dossier de ce fichier ou absolu. Le clonage demande d'accepter les conditions sur
 #   https://huggingface.co/kyutai/pocket-tts puis `uvx --from huggingface_hub hf auth login`.
-# Vide : « estelle ».
+# La même voix lit toutes les langues. Vide : la voix fournie de chaque langue
+# (« estelle » en français, « alba » en anglais).
 voice = ""
 # Exécutable pocket-tts. Vide : téléchargé automatiquement (version figée, empreinte vérifiée).
 binary = ""
 
 [pronunciation]
-# Remplacements mot à mot avant la synthèse (sensibles à la casse).
+# Remplacements mot à mot avant la synthèse des textes en français (sensibles à la casse).
 # Kyutai = "kiou-taï"
 # OTAN = "otane"
 "#;
@@ -175,7 +182,9 @@ pub struct TtsConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PocketConfig {
+    /// `language::AUTO` or a model name.
     pub language: String,
+    pub auto_languages: Vec<String>,
     pub voice: String,
     pub binary: String,
 }
@@ -208,6 +217,23 @@ impl Config {
             text = std::fs::read_to_string(file)?;
             user = toml::from_str(&text)?;
         }
+        if needs_language_migration(&user) {
+            // Files from before language detection read everything in French.
+            tracing::info!("config: reading language becomes automatic (French, English)");
+            save(paths, |doc| {
+                doc["pocket"]["language"] = toml_edit::value(crate::language::AUTO);
+                doc["pocket"]["auto_languages"] =
+                    toml_edit::value(toml_edit::Array::from_iter(["french", "english"]));
+                if let Some(mut key) = doc["pocket"].as_table_mut().and_then(|t| t.key_mut("auto_languages")) {
+                    key.leaf_decor_mut().set_prefix(
+                        "# Langues reconnues quand language = \"auto\" ; la première sert quand le texte\n\
+                         # est trop court pour trancher.\n",
+                    );
+                }
+            })?;
+            text = std::fs::read_to_string(file)?;
+            user = toml::from_str(&text)?;
+        }
         // Missing sections or keys fall back to the defaults.
         let mut merged: toml::Table = toml::from_str(DEFAULT_CONFIG)?;
         merge_tables(&mut merged, user);
@@ -220,11 +246,41 @@ impl Config {
             tracing::warn!(speed, "playback speed out of range, clamped to {min}..{max}");
             config.playback.speed = speed.clamp(min, max);
         }
+        config.pocket.check_languages();
         Ok(config)
     }
 }
 
 impl PocketConfig {
+    /// Drops unknown language names, so that a typo does not stop the engine.
+    fn check_languages(&mut self) {
+        use crate::language;
+        self.auto_languages.retain(|name| {
+            let known = language::is_known(name);
+            if !known {
+                tracing::warn!(%name, "unknown language in auto_languages, ignored");
+            }
+            known
+        });
+        if self.auto_languages.is_empty() {
+            self.auto_languages.push("french".to_string());
+        }
+        if self.language != language::AUTO && !language::is_known(&self.language) {
+            tracing::warn!(language = %self.language, "unknown reading language, using \"auto\"");
+            self.language = language::AUTO.to_string();
+        }
+    }
+
+    /// The languages whose engines run from the start: the first one is ready before the
+    /// reader reports itself ready.
+    pub fn startup_languages(&self) -> Vec<String> {
+        if self.language == crate::language::AUTO {
+            self.auto_languages.clone()
+        } else {
+            vec![self.language.clone()]
+        }
+    }
+
     /// The `--default-voice` argument: a built-in voice name, or a file resolved against the
     /// config directory. `None` for the model's own default.
     pub fn voice_argument(&self, paths: &Paths) -> Result<Option<OsString>> {
@@ -271,6 +327,15 @@ fn needs_pause_migration(user: &toml::Table) -> bool {
         return false;
     };
     hotkeys.get("pause").is_none() && hotkeys.get("stop").and_then(toml::Value::as_str) == Some("F10")
+}
+
+/// Before language detection, `language` was the only key and defaulted to French.
+fn needs_language_migration(user: &toml::Table) -> bool {
+    let Some(pocket) = user.get("pocket").and_then(toml::Value::as_table) else {
+        return false;
+    };
+    pocket.get("auto_languages").is_none()
+        && pocket.get("language").and_then(toml::Value::as_str) == Some("french")
 }
 
 fn merge_tables(base: &mut toml::Table, overlay: toml::Table) {
@@ -343,6 +408,20 @@ mod tests {
         assert!(!needs_pause_migration(&custom));
         let current: toml::Table = toml::from_str(DEFAULT_CONFIG).unwrap();
         assert!(!needs_pause_migration(&current));
+    }
+
+    #[test]
+    fn language_migration() {
+        let old: toml::Table = toml::from_str("[pocket]\nlanguage = \"french\"\nvoice = \"\"\n").unwrap();
+        assert!(needs_language_migration(&old));
+        let chosen: toml::Table =
+            toml::from_str("[pocket]\nlanguage = \"french\"\nauto_languages = [\"french\"]\n").unwrap();
+        assert!(!needs_language_migration(&chosen));
+        let current: toml::Table = toml::from_str(DEFAULT_CONFIG).unwrap();
+        assert!(!needs_language_migration(&current));
+        let config = Config::default();
+        assert_eq!(config.pocket.language, crate::language::AUTO);
+        assert_eq!(config.pocket.startup_languages(), ["french", "english"]);
     }
 
     #[test]

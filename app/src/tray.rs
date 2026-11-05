@@ -9,6 +9,7 @@ use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 use crate::config::{DictationConfig, HotkeysConfig, InsertMode, RecordingConfig};
 use crate::dictation::DictationStatus;
+use crate::language;
 use crate::reader::Status;
 use crate::voices::{self, VoiceEntry};
 
@@ -21,6 +22,8 @@ pub enum Action {
     AddVoice,
     OpenVoicesFolder,
     SetSpeed(f32),
+    /// `language::AUTO` or a model name.
+    SetLanguage(String),
     Preview,
     SetInsertMode(InsertMode),
     ToggleTrailingSpace,
@@ -41,6 +44,9 @@ pub struct MenuState<'a> {
     /// Config value of the current voice ("" for the default).
     pub voice: &'a str,
     pub user_voices: &'a [VoiceEntry],
+    /// Reading language setting: `language::AUTO` or a model name.
+    pub language: &'a str,
+    pub auto_languages: &'a [String],
     pub speed: f32,
     pub dictation: &'a DictationConfig,
     pub recording: &'a RecordingConfig,
@@ -173,6 +179,31 @@ fn build_menu(state: &MenuState) -> Result<(Menu, HashMap<MenuId, Action>)> {
     voice_menu.append(&b.item("Ajouter une voix…", Action::AddVoice))?;
     voice_menu.append(&b.item("Ouvrir le dossier des voix", Action::OpenVoicesFolder))?;
 
+    // Reading language: detected among the configured ones, or fixed.
+    let auto = state.language == language::AUTO;
+    let language_menu = Submenu::new(
+        if auto { "Langue : automatique".to_string() } else { format!("Langue : {}", language::label(state.language)) },
+        true,
+    );
+    let auto_labels: Vec<String> = state.auto_languages.iter().map(|l| language::label(l).to_lowercase()).collect();
+    language_menu.append(&b.check(
+        format!("Automatique ({})", auto_labels.join(", ")),
+        auto,
+        Action::SetLanguage(language::AUTO.to_string()),
+    ))?;
+    language_menu.append(&separator())?;
+    let mut fixed: Vec<&str> = state.auto_languages.iter().map(String::as_str).collect();
+    if !auto && !fixed.contains(&state.language) {
+        fixed.push(state.language);
+    }
+    for name in fixed {
+        language_menu.append(&b.check(
+            format!("Toujours en {}", language::label(name).to_lowercase()),
+            name == state.language,
+            Action::SetLanguage(name.to_string()),
+        ))?;
+    }
+
     // Speeds: presets, plus the current value if it was set by hand to something else.
     let speed_menu = Submenu::new(format!("Vitesse : {}", speed_label(state.speed)), true);
     let mut speeds = SPEEDS.to_vec();
@@ -246,6 +277,7 @@ fn build_menu(state: &MenuState) -> Result<(Menu, HashMap<MenuId, Action>)> {
         Box::new(b.item(format!("Arrêter la lecture ({})", state.hotkeys.stop), Action::Stop)),
         Box::new(separator()),
         Box::new(voice_menu),
+        Box::new(language_menu),
         Box::new(speed_menu),
         Box::new(b.item("Écouter un exemple", Action::Preview)),
         Box::new(recording_menu),
