@@ -2,7 +2,9 @@
 
 # SpeakWrite
 
-[![Build](https://github.com/abreheret/SpeakWrite/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/abreheret/SpeakWrite/actions/workflows/build.yml)
+[![Windows](https://github.com/abreheret/SpeakWrite/actions/workflows/build-windows.yml/badge.svg?branch=master)](https://github.com/abreheret/SpeakWrite/actions/workflows/build-windows.yml)
+[![Linux](https://github.com/abreheret/SpeakWrite/actions/workflows/build-linux.yml/badge.svg?branch=master)](https://github.com/abreheret/SpeakWrite/actions/workflows/build-linux.yml)
+[![macOS](https://github.com/abreheret/SpeakWrite/actions/workflows/build-macos.yml/badge.svg?branch=master)](https://github.com/abreheret/SpeakWrite/actions/workflows/build-macos.yml)
 [![Release](https://img.shields.io/github/v/release/abreheret/SpeakWrite)](https://github.com/abreheret/SpeakWrite/releases/latest)
 
 Outil de bureau **local** pour Windows, Linux et macOS, qui fonctionne dans les deux sens :

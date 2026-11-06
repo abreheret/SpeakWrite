@@ -1,0 +1,48 @@
+# A tag "v*" (git tag v0.1.0 && git push origin v0.1.0) builds the three platforms,
+# then publishes a GitHub Release with the binaries attached.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  windows:
+    uses: ./.github/workflows/_build.yml
+    with:
+      name: windows-x64
+      os: windows-latest
+      exe: speakwrite.exe
+
+  # Oldest supported Ubuntu runner, for a binary that runs on older glibc versions.
+  linux:
+    uses: ./.github/workflows/_build.yml
+    with:
+      name: linux-x64
+      os: ubuntu-22.04
+      exe: speakwrite
+
+  macos:
+    uses: ./.github/workflows/_build.yml
+    with:
+      name: macos-arm64
+      os: macos-latest
+      features: metal
+      exe: speakwrite
+
+  release:
+    name: GitHub Release
+    needs: [windows, linux, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

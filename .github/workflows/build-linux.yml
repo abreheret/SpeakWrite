@@ -1,0 +1,21 @@
+# Linux build on every push to master and every pull request; binary kept as a workflow artifact.
+# Tags are built by release.yml.
+name: Linux
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/_build.yml
+    with:
+      name: linux-x64
+      os: ubuntu-22.04
+      exe: speakwrite

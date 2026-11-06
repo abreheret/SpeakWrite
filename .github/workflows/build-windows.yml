@@ -1,0 +1,21 @@
+# Windows build on every push to master and every pull request; binary kept as a workflow artifact.
+# Tags are built by release.yml.
+name: Windows
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/_build.yml
+    with:
+      name: windows-x64
+      os: windows-latest
+      exe: speakwrite.exe
