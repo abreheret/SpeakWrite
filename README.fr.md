@@ -2,6 +2,9 @@
 
 # SpeakWrite
 
+[![Build](https://github.com/abreheret/SpeakWrite/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/abreheret/SpeakWrite/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/abreheret/SpeakWrite)](https://github.com/abreheret/SpeakWrite/releases/latest)
+
 Outil de bureau **local** pour Windows, Linux et macOS, qui fonctionne dans les deux sens :
 
 - **Lecture** : sélectionner un texte n'importe où, appuyer sur un raccourci, et il est lu à voix haute, avec en option un enregistrement MP3.

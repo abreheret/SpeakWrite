@@ -2,6 +2,9 @@
 
 # SpeakWrite
 
+[![Build](https://github.com/abreheret/SpeakWrite/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/abreheret/SpeakWrite/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/abreheret/SpeakWrite)](https://github.com/abreheret/SpeakWrite/releases/latest)
+
 A **local** desktop tool for Windows, Linux and macOS that works both ways:
 
 - **Reading**: select text anywhere, press a hotkey, and it is read aloud, optionally saved as MP3.
