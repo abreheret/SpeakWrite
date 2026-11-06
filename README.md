@@ -275,6 +275,10 @@ French voices (`--voice`, paths relative to the [`kyutai/tts-voices`](https://hu
    - tests on Linux and macOS;
    - per-OS packages.
 
+## Development
+
+The code was written with the assistance of [Claude Opus 5.5](https://www.anthropic.com/claude) (Anthropic), through Claude Code.
+
 ## Licenses
 
 - SpeakWrite code: **MIT**, see [LICENSE](LICENSE).

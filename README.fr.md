@@ -273,6 +273,10 @@ Voix françaises (option `--voice`, chemins relatifs au dépôt [`kyutai/tts-voi
    - tests sous Linux et macOS ;
    - paquets par OS.
 
+## Développement
+
+Le code a été écrit avec l'assistance de [Claude Opus 5.5](https://www.anthropic.com/claude) (Anthropic), via Claude Code.
+
 ## Licences
 
 - Code SpeakWrite : **MIT**, voir [LICENSE](LICENSE).
