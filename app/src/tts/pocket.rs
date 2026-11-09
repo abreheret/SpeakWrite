@@ -47,6 +47,9 @@ impl PocketTts {
             tracing::info!(voice = %voice.to_string_lossy(), "voice");
             command.arg("--default-voice").arg(&voice);
         }
+        if let Some(hf_home) = default_hf_home() {
+            command.env("HF_HOME", hf_home);
+        }
         command
             .stdin(Stdio::null())
             .stdout(Stdio::from(log.try_clone()?))
@@ -145,6 +148,19 @@ impl Drop for PocketTts {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
+}
+
+/// The Hugging Face cache, given explicitly to pocket-tts when `HF_HOME` is not set.
+///
+/// pocket-tts finds the cache, and the login token needed by voice cloning, through `HOME`,
+/// which Windows does not define for apps started from the Explorer or at login. Without it,
+/// a cloned voice fails to load. Same place as the default of the hf-hub crate used for dictation.
+fn default_hf_home() -> Option<PathBuf> {
+    if std::env::var_os("HF_HOME").is_some() {
+        return None;
+    }
+    let home = directories::UserDirs::new()?.home_dir().to_path_buf();
+    Some(home.join(".cache").join("huggingface"))
 }
 
 fn free_port() -> Result<u16> {

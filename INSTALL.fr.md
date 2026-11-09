@@ -187,7 +187,7 @@ Le clonage de voix demande un accès au dépôt `kyutai/pocket-tts`, qui est gra
 
 N'utilisez que votre propre voix, ou celle d'une personne qui a donné son accord explicite.
 
-Sans accès, la lecture échoue avec une erreur `403` / `GatedRepoError` dans les journaux. Les voix fournies, elles, fonctionnent toujours.
+Sans accès, le moteur de voix ne démarre pas et l'erreur indique `We could not download the weights for the model with voice cloning`. Les voix fournies, elles, fonctionnent toujours.
 
 ## 6. Premier lancement et vérification
 
@@ -216,7 +216,7 @@ Sous Windows, l'exécutable de la version release n'a pas de console. Pour voir 
 | `Visual Studio C++ build tools not found` | Installer la charge de travail « Développement Desktop en C++ » (section 2) |
 | `nvcc not found: dictation will run on the CPU` | CUDA absent ou pas dans le `PATH`. Ce n'est pas bloquant : la dictée tourne sur le processeur |
 | Une touche ne réagit pas ; les journaux indiquent `cannot register hotkey` | Une autre application utilise déjà la touche (AutoHotkey, logiciel de capture…). La fermer, ou changer la touche dans `[hotkeys]` |
-| `403` ou `GatedRepoError` | Voix clonée sans accès à `kyutai/pocket-tts` : voir la section 5, ou choisir une voix fournie |
+| `We could not download the weights for the model with voice cloning` | Voix clonée sans accès à `kyutai/pocket-tts`, ou jeton non enregistré : voir la section 5, ou choisir une voix fournie |
 | Premier lancement très long | Téléchargement des modèles (environ 3,5 Go). La progression est dans les journaux, menu → « Ouvrir les journaux » |
 | La dictée n'écrit rien dans certaines fenêtres (Windows) | Les fenêtres lancées en administrateur refusent la frappe simulée. Lancer SpeakWrite en administrateur aussi, ou passer en mode collage (Dictée → « Coller tout au relâchement ») |
 | Linux : pas d'icône | GNOME demande l'extension AppIndicator. Sous Wayland, les raccourcis globaux et la frappe simulée dépendent du bureau ; X11 fonctionne |

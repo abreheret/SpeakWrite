@@ -187,7 +187,7 @@ Voice cloning requires access to the `kyutai/pocket-tts` repository, which is fr
 
 Only use your own voice, or the voice of someone who gave explicit consent.
 
-Without access, reading fails with a `403` / `GatedRepoError` in the logs. The built-in voices always work.
+Without access, the voice engine does not start and the error says `We could not download the weights for the model with voice cloning`. The built-in voices always work.
 
 ## 6. First launch and checks
 
@@ -216,7 +216,7 @@ On Windows, the release executable has no console. To see its output, pipe it:
 | `Visual Studio C++ build tools not found` | Install the "Desktop development with C++" workload (section 2) |
 | `nvcc not found: dictation will run on the CPU` | CUDA is missing or not on the `PATH`. Not blocking: dictation runs on the CPU |
 | A hotkey does nothing; the logs say `cannot register hotkey` | Another app already uses the key (AutoHotkey, screen capture tools…). Close it, or change the key in `[hotkeys]` |
-| `403` or `GatedRepoError` | Cloned voice without access to `kyutai/pocket-tts`: see section 5, or pick a built-in voice |
+| `We could not download the weights for the model with voice cloning` | Cloned voice without access to `kyutai/pocket-tts`, or token not saved: see section 5, or pick a built-in voice |
 | Very long first launch | Model download (about 3.5 GB). Progress is in the logs, menu → `Open the logs` |
 | Dictation types nothing into some windows (Windows) | Windows running as administrator reject simulated keystrokes. Run SpeakWrite as administrator too, or use paste mode (`Dictation` → `Paste everything on release`) |
 | Linux: no icon | GNOME needs the AppIndicator extension. On Wayland, global hotkeys and simulated typing depend on the desktop; X11 works |
