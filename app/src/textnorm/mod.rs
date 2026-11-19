@@ -5,10 +5,12 @@
 //! do not (measured in spikes, see README).
 
 mod numbers;
+mod units;
 
 use std::collections::BTreeMap;
 
 use numbers::{Gender, cardinal, integer_str, ordinal};
+use units::{greek_name, read_unit};
 
 pub struct Normalizer {
     /// Whole-word replacements from the user config, matched case-sensitively.
@@ -42,8 +44,18 @@ impl Normalizer {
                     i += 1;
                 }
                 let token: String = chars[start..i].iter().collect();
-                let spoken = self.read_word(&token);
-                push_words(&mut out, &spoken, chars.get(i).copied());
+                if let Some(spoken) = self.pronunciation.get(&token) {
+                    push_words(&mut out, spoken, chars.get(i).copied());
+                } else if let Some((unit, end)) =
+                    read_unit(&chars, start).filter(|(unit, _)| unit.standalone())
+                {
+                    let plural = !after_singular_determiner(&out);
+                    push_words(&mut out, &unit.spoken(plural), chars.get(end).copied());
+                    i = end;
+                } else {
+                    let spoken = self.read_word(&token);
+                    push_words(&mut out, &spoken, chars.get(i).copied());
+                }
             } else {
                 match c {
                     // Markdown decorations, as in "**gras**" or "`code`".
@@ -52,6 +64,15 @@ impl Normalizer {
                     '&' => push_words(&mut out, "et", chars.get(i + 1).copied()),
                     '%' => push_words(&mut out, "pour cent", chars.get(i + 1).copied()),
                     '€' => push_words(&mut out, "euros", chars.get(i + 1).copied()),
+                    '=' if !next_to_operator(&chars, i) => {
+                        push_words(&mut out, "égale", chars.get(i + 1).copied())
+                    }
+                    '≠' => push_words(&mut out, "différent de", chars.get(i + 1).copied()),
+                    '≈' => push_words(&mut out, "environ égal à", chars.get(i + 1).copied()),
+                    '≤' => push_words(&mut out, "inférieur ou égal à", chars.get(i + 1).copied()),
+                    '≥' => push_words(&mut out, "supérieur ou égal à", chars.get(i + 1).copied()),
+                    '±' => push_words(&mut out, "plus ou moins", chars.get(i + 1).copied()),
+                    '×' => push_words(&mut out, "fois", chars.get(i + 1).copied()),
                     '\u{a0}' | '\u{202f}' | '\t' => out.push(' '),
                     _ => out.push(c),
                 }
@@ -64,6 +85,25 @@ impl Normalizer {
     fn read_word(&self, token: &str) -> String {
         if let Some(spoken) = self.pronunciation.get(token) {
             return spoken.clone();
+        }
+        // Greek letters: "τ" -> "tau", "Δt" -> "delta t".
+        if token.chars().any(|c| greek_name(c).is_some()) {
+            let mut parts: Vec<String> = Vec::new();
+            let mut run = String::new();
+            for c in token.chars() {
+                if let Some(name) = greek_name(c) {
+                    if !run.is_empty() {
+                        parts.push(self.read_word(&std::mem::take(&mut run)));
+                    }
+                    parts.push(name.to_string());
+                } else {
+                    run.push(c);
+                }
+            }
+            if !run.is_empty() {
+                parts.push(self.read_word(&run));
+            }
+            return parts.join(" ");
         }
         if !token.chars().any(|c| c.is_ascii_digit()) {
             return token.to_string();
@@ -101,6 +141,43 @@ fn plain(text: &str) -> String {
         })
         .collect();
     tidy_lines(&cleaned)
+}
+
+/// "=" alone, not part of "==", "<=", "=>", ":=", "!=".
+fn next_to_operator(chars: &[char], i: usize) -> bool {
+    let is_op = |c: &char| matches!(c, '=' | '<' | '>' | '!' | ':' | '+' | '-' | '*' | '/');
+    (i > 0 && is_op(&chars[i - 1])) || chars.get(i + 1).is_some_and(is_op)
+}
+
+/// A unit without a number reads in the singular after "au", "le", "par"... ("prix au m²"),
+/// in the plural otherwise ("mesuré en cm").
+fn after_singular_determiner(out: &str) -> bool {
+    let last = out
+        .trim_end()
+        .trim_end_matches(['\'', '’'])
+        .rsplit(|c: char| !c.is_alphanumeric())
+        .next()
+        .unwrap_or("")
+        .to_lowercase();
+    matches!(last.as_str(), "au" | "le" | "l" | "un" | "une" | "du" | "par" | "chaque" | "ce" | "cet")
+}
+
+/// "un" -> "une" at the end of a cardinal, before a feminine unit: "vingt et une secondes".
+fn feminine(words: &str) -> String {
+    match words.strip_suffix("un") {
+        Some(head) if head.is_empty() || head.ends_with([' ', '-']) => format!("{head}une"),
+        _ => words.to_string(),
+    }
+}
+
+fn with_decimal(words: String, decimal: &Option<(char, String)>) -> String {
+    match decimal {
+        Some((sep, dec)) => {
+            let sep_word = if *sep == ',' { "virgule" } else { "point" };
+            format!("{words} {sep_word} {}", integer_str(dec))
+        }
+        None => words,
+    }
 }
 
 /// Appends spoken words, with spaces so they never glue to neighbouring letters or digits.
@@ -248,6 +325,26 @@ fn read_number(chars: &[char], start: usize) -> (String, usize) {
         j
     };
     let unit = chars.get(unit_at).copied().filter(|c| matches!(c, '%' | '€' | '$'));
+
+    // Unit symbols: "10 m", "3 s", "50 km/h", "20 m²", "-5 °C".
+    if unit.is_none()
+        && let Some((symbol, end)) = read_unit(chars, unit_at)
+    {
+        let plural = int_digits.parse::<u64>().is_ok_and(|n| n >= 2) || int_digits.len() > 18;
+        let mut words = integer_str(&int_digits);
+        if symbol.feminine() {
+            words = feminine(&words);
+        }
+        let big = ["million", "millions", "milliard", "milliards"].iter().any(|w| words.ends_with(w));
+        let words = with_decimal(words, &decimal);
+        let link = match (big && decimal.is_none(), symbol.starts_with_vowel()) {
+            (false, _) => "",
+            (true, true) => "d'",
+            (true, false) => "de ",
+        };
+        return (format!("{prefix}{words} {link}{}", symbol.spoken(plural)), end - start);
+    }
+
     let int_words = integer_str(&int_digits);
     let words = match (unit, &decimal) {
         (Some(currency @ ('€' | '$')), Some((',', cents))) if cents.len() == 2 => {
@@ -258,11 +355,7 @@ fn read_number(chars: &[char], start: usize) -> (String, usize) {
             }
         }
         _ => {
-            let mut words = int_words;
-            if let Some((sep, dec)) = &decimal {
-                let sep_word = if *sep == ',' { "virgule" } else { "point" };
-                words = format!("{words} {sep_word} {}", integer_str(dec));
-            }
+            let words = with_decimal(int_words, &decimal);
             match unit {
                 Some('%') => format!("{words} pour cent"),
                 Some(c) => format!("{words} {}", currency_name(c, &int_digits)),
@@ -335,6 +428,53 @@ mod tests {
         assert_eq!(norm("Du **gras** et du `code`."), "Du gras et du code.");
         assert_eq!(norm("Titre\n\nUn paragraphe."), "Titre.\nUn paragraphe.");
         assert_eq!(norm("Toi & moi."), "Toi et moi.");
+    }
+
+    #[test]
+    fn units_after_numbers() {
+        assert_eq!(norm("τ = 3 s"), "tau égale trois secondes.");
+        assert_eq!(norm("Il a couru 10 m."), "Il a couru dix mètres.");
+        assert_eq!(norm("Il a couru 10m."), "Il a couru dix mètres.");
+        assert_eq!(norm("Un trait de 1 cm."), "Un trait de un centimètre.");
+        assert_eq!(norm("Attendre 1 s, puis 21 s."), "Attendre une seconde, puis vingt et une secondes.");
+        assert_eq!(norm("Latence de 1,5 ms."), "Latence de une virgule cinq milliseconde.");
+        assert_eq!(norm("Il roule à 50 km/h."), "Il roule à cinquante kilomètres par heure.");
+        assert_eq!(norm("g = 9,81 m/s²"), "g égale neuf virgule quatre-vingt-un mètres par seconde carrée.");
+        assert_eq!(norm("Un appartement de 45 m²."), "Un appartement de quarante-cinq mètres carrés.");
+        assert_eq!(norm("Un appartement de 45 m2."), "Un appartement de quarante-cinq mètres carrés.");
+        assert_eq!(norm("Il fait -5 °C."), "Il fait moins cinq degrés Celsius.");
+        assert_eq!(norm("Un angle de 90°."), "Un angle de quatre-vingt-dix degrés.");
+        assert_eq!(norm("Un fichier de 3 Go."), "Un fichier de trois gigaoctets.");
+        assert_eq!(norm("Pendant 2 min et 3 h."), "Pendant deux minutes et trois heures.");
+        assert_eq!(norm("Il mesure 1 m 80."), "Il mesure un mètre quatre-vingts.");
+        assert_eq!(norm("Un signal à 440 Hz."), "Un signal à quatre cent quarante hertz.");
+        assert_eq!(norm("Il y a 2 000 000 m."), "Il y a deux millions de mètres.");
+    }
+
+    #[test]
+    fn units_are_not_words() {
+        assert_eq!(norm("Le 3 mai."), "Le trois mai.");
+        assert_eq!(norm("Les 2 m'ont vu."), "Les deux m'ont vu.");
+        assert_eq!(norm("Les 3 sont là."), "Les trois sont là.");
+        assert_eq!(norm("Le mot m seul."), "Le mot m seul.");
+    }
+
+    #[test]
+    fn units_without_numbers() {
+        assert_eq!(norm("Mesuré en cm."), "Mesuré en centimètres.");
+        assert_eq!(norm("Le prix au m²."), "Le prix au mètre carré.");
+        assert_eq!(norm("Vitesse en km/h."), "Vitesse en kilomètres par heure.");
+        assert_eq!(norm("Temps en ms."), "Temps en millisecondes.");
+    }
+
+    #[test]
+    fn greek_letters_and_symbols() {
+        assert_eq!(norm("τ = 3 s"), "tau égale trois secondes.");
+        assert_eq!(norm("Soit Δt petit et λ fixé."), "Soit delta t petit et lambda fixé.");
+        assert_eq!(norm("Une erreur de ± 2 %."), "Une erreur de plus ou moins deux pour cent.");
+        assert_eq!(norm("Si a ≤ b."), "Si a inférieur ou égal à b.");
+        assert_eq!(norm("Teste a == b."), "Teste a == b.");
+        assert_eq!(norm("Une résistance de 10 kΩ."), "Une résistance de dix kilo-ohms.");
     }
 
     #[test]
