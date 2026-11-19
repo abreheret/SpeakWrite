@@ -60,7 +60,7 @@ Layout of `app/src`:
 | `reader.rs` | Reading thread. Each request carries a generation number: a new F9 or a stop cancels the previous one |
 | `selection.rs` | Simulated Ctrl+C (Cmd+C on macOS), wait for the clipboard, restore it. Primary selection on Linux |
 | `language.rs` | Splits the text into runs of lines in one language. Short lines (titles) follow the next long line; undecidable texts use the first language |
-| `textnorm/` | French spelling-out of numbers, times, ordinals, %, €, units (m, s, km/h, m², °C…), Greek letters, =, F1–F24 keys; pronunciation dictionary. Other languages: Markdown and spaces only, their models read digits themselves |
+| `textnorm/` | French spelling-out of numbers, times, ordinals, %, €, units (m, s, km/h, m², °C…), Greek letters, =, French abbreviations (bcp, svp, Mme, c.-à-d., n°…), F1–F24 keys; pronunciation dictionary. Other languages: Markdown and spaces only, their models read digits themselves |
 | `tts/` | `TtsEngine` trait, one engine per language started on demand, Pocket TTS engine, verified binary download, streamed WAV reader |
 | `tray.rs` | Tray icon and menu (voices, language, speed, MP3, dictation), rebuilt on every change |
 | `voices.rs` | Catalogue: built-in voices and recordings in the `voices/` folder, import of a new file, renaming |

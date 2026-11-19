@@ -60,7 +60,7 @@ Organisation de `app/src` :
 | `reader.rs` | Thread de lecture. Chaque demande porte un numéro de génération : un nouveau F9 ou un arrêt annule la précédente |
 | `selection.rs` | Ctrl+C simulé (Cmd+C sur macOS), attente du presse-papier, restauration. Sélection primaire sous Linux |
 | `language.rs` | Découpe le texte en suites de lignes d'une même langue. Les lignes courtes (titres) suivent la ligne longue d'après ; un texte indécidable prend la première langue |
-| `textnorm/` | Écriture en toutes lettres pour le français : nombres, heures, ordinaux, %, €, unités (m, s, km/h, m², °C…), lettres grecques, =, touches F1 à F24, dictionnaire de prononciation. Autres langues : Markdown et espaces seulement, leurs modèles lisent eux-mêmes les chiffres |
+| `textnorm/` | Écriture en toutes lettres pour le français : nombres, heures, ordinaux, %, €, unités (m, s, km/h, m², °C…), lettres grecques, =, abréviations (bcp, svp, Mme, c.-à-d., n°…), touches F1 à F24, dictionnaire de prononciation. Autres langues : Markdown et espaces seulement, leurs modèles lisent eux-mêmes les chiffres |
 | `tts/` | Interface `TtsEngine`, un moteur par langue démarré à la demande, moteur Pocket TTS, téléchargement vérifié du binaire, lecture du WAV en streaming |
 | `tray.rs` | Icône et menu (voix, langue, vitesse, MP3, dictée), reconstruit à chaque changement |
 | `voices.rs` | Catalogue : voix fournies et enregistrements du dossier `voices/`, import d'un nouveau fichier, renommage |

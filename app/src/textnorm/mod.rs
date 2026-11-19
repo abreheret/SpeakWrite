@@ -4,6 +4,7 @@
 //! spelled out. Acronyms are left as written: "SNCF" reads fine, while "S N C F" or "S.N.C.F."
 //! do not (measured in spikes, see README).
 
+mod abbrev;
 mod numbers;
 mod units;
 
@@ -38,6 +39,9 @@ impl Normalizer {
                 let (words, consumed) = read_number(&chars, i);
                 push_words(&mut out, &words, chars.get(i + consumed).copied());
                 i += consumed;
+            } else if let Some((spoken, end)) = abbrev::read_dotted(&chars, i) {
+                push_words(&mut out, &spoken, chars.get(end).copied());
+                i = end;
             } else if c.is_alphabetic() {
                 let start = i;
                 while i < chars.len() && chars[i].is_alphanumeric() {
@@ -46,6 +50,9 @@ impl Normalizer {
                 let token: String = chars[start..i].iter().collect();
                 if let Some(spoken) = self.pronunciation.get(&token) {
                     push_words(&mut out, spoken, chars.get(i).copied());
+                } else if let Some((spoken, end)) = abbrev::read_word(&token, &chars, i) {
+                    push_words(&mut out, &spoken, chars.get(end).copied());
+                    i = end;
                 } else if let Some((unit, end)) =
                     read_unit(&chars, start).filter(|(unit, _)| unit.standalone())
                 {
@@ -475,6 +482,35 @@ mod tests {
         assert_eq!(norm("Si a ≤ b."), "Si a inférieur ou égal à b.");
         assert_eq!(norm("Teste a == b."), "Teste a == b.");
         assert_eq!(norm("Une résistance de 10 kΩ."), "Une résistance de dix kilo-ohms.");
+    }
+
+    #[test]
+    fn texting_abbreviations() {
+        assert_eq!(norm("Merci bcp, svp réponds vite."), "Merci beaucoup, s'il vous plaît réponds vite.");
+        assert_eq!(norm("Bcp de monde. SVP, aide-moi."), "Beaucoup de monde. s'il vous plaît, aide-moi.");
+        assert_eq!(norm("tkt, on se voit pdt les vacances"), "t'inquiète, on se voit pendant les vacances.");
+        assert_eq!(norm("Il y a qqn qui a qqch pr toi."), "Il y a quelqu'un qui a quelque chose pour toi.");
+        assert_eq!(norm("Des pommes, des poires, etc."), "Des pommes, des poires, et cetera.");
+    }
+
+    #[test]
+    fn titles_and_dotted_abbreviations() {
+        assert_eq!(norm("M. Dupont et Mme Durand."), "Monsieur Dupont et Madame Durand.");
+        assert_eq!(norm("Le Dr. House et le Pr Martin."), "Le Docteur House et le Professeur Martin.");
+        assert_eq!(norm("Un fruit, c.-à-d. une pomme."), "Un fruit, c'est-à-dire une pomme.");
+        assert_eq!(norm("Un fruit, p. ex. une pomme."), "Un fruit, par exemple une pomme.");
+        assert_eq!(norm("Voir p. 12, cf. annexe."), "Voir page douze, confer annexe.");
+        assert_eq!(norm("Le n° 5 et le n°7."), "Le numéro cinq et le numéro sept.");
+        assert_eq!(norm("En 52 av. J.-C. Puis rien."), "En cinquante-deux avant Jésus-Christ. Puis rien.");
+        assert_eq!(norm("Env. 3 km."), "Environ trois kilomètres.");
+    }
+
+    #[test]
+    fn abbreviations_left_alone() {
+        assert_eq!(norm("Le fichier index.ts et la PR 12."), "Le fichier index.ts et la PR douze.");
+        assert_eq!(norm("Le mot M seul."), "Le mot M seul.");
+        assert_eq!(norm("C'était mon ex."), "C'était mon ex.");
+        assert_eq!(norm("Il dort pr."), "Il dort pour.");
     }
 
     #[test]
