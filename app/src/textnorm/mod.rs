@@ -57,7 +57,9 @@ impl Normalizer {
                     read_unit(&chars, start).filter(|(unit, _)| unit.standalone())
                 {
                     let plural = !after_singular_determiner(&out);
-                    push_words(&mut out, &unit.spoken(plural), chars.get(end).copied());
+                    let (currency, end) = currency_after(&chars, end);
+                    let spoken = format!("{}{currency}", unit.spoken(plural));
+                    push_words(&mut out, &spoken, chars.get(end).copied());
                     i = end;
                 } else {
                     let spoken = self.read_word(&token);
@@ -80,6 +82,24 @@ impl Normalizer {
                     '≥' => push_words(&mut out, "supérieur ou égal à", chars.get(i + 1).copied()),
                     '±' => push_words(&mut out, "plus ou moins", chars.get(i + 1).copied()),
                     '×' => push_words(&mut out, "fois", chars.get(i + 1).copied()),
+                    '√' => push_words(&mut out, "racine carrée de", chars.get(i + 1).copied()),
+                    // Markdown quote: "> texte" at the start of a line.
+                    '>' if at_line_start(&chars, i) => {}
+                    '<' if is_comparison(&chars, i) => {
+                        push_words(&mut out, "inférieur à", chars.get(i + 1).copied())
+                    }
+                    '>' if is_comparison(&chars, i) => {
+                        push_words(&mut out, "supérieur à", chars.get(i + 1).copied())
+                    }
+                    // Markdown strikethrough: "~~barré~~".
+                    '~' if chars.get(i + 1) == Some(&'~') || (i > 0 && chars[i - 1] == '~') => {}
+                    '~' if matches!(chars.get(i + 1), Some('/' | '\\')) => {
+                        push_words(&mut out, "home", chars.get(i + 1).copied())
+                    }
+                    '~' if !(i > 0 && chars[i - 1].is_alphanumeric()) => {
+                        push_words(&mut out, "environ", chars.get(i + 1).copied())
+                    }
+                    c if is_box_drawing(c) => out.push(' '),
                     '\u{a0}' | '\u{202f}' | '\t' => out.push(' '),
                     _ => out.push(c),
                 }
@@ -144,10 +164,43 @@ fn plain(text: &str) -> String {
         .filter_map(|c| match c {
             '*' | '`' | '#' => None,
             '_' | '\u{a0}' | '\u{202f}' | '\t' => Some(' '),
+            c if is_box_drawing(c) => Some(' '),
             c => Some(c),
         })
         .collect();
     tidy_lines(&cleaned)
+}
+
+/// Table borders drawn with "─", "│", "┼"...: silent.
+fn is_box_drawing(c: char) -> bool {
+    ('\u{2500}'..='\u{257f}').contains(&c)
+}
+
+/// Only spaces or tabs before `i` on its line.
+fn at_line_start(chars: &[char], i: usize) -> bool {
+    chars[..i].iter().rev().take_while(|c| **c != '\n').all(|c| *c == ' ' || *c == '\t')
+}
+
+/// "<" or ">" between spaces or digits ("a < b", "x > 3", "3>2"), not in "<=", "->", "<<",
+/// "<div>" or "</b>".
+fn is_comparison(chars: &[char], i: usize) -> bool {
+    let before_ok = i == 0 || matches!(chars[i - 1], ' ' | '\t' | '\u{a0}' | '(') || chars[i - 1].is_ascii_digit();
+    let after_ok = match chars.get(i + 1) {
+        None => true,
+        Some(c) if c.is_whitespace() || c.is_ascii_digit() => true,
+        Some('-' | '−') => chars.get(i + 2).is_some_and(char::is_ascii_digit),
+        _ => false,
+    };
+    before_ok && after_ok
+}
+
+/// "€" or "$" glued after a unit: "3 Md€" -> "trois milliards d'euros".
+fn currency_after(chars: &[char], end: usize) -> (&'static str, usize) {
+    match chars.get(end) {
+        Some('€') => (" d'euros", end + 1),
+        Some('$') => (" de dollars", end + 1),
+        _ => ("", end),
+    }
 }
 
 /// "=" alone, not part of "==", "<=", "=>", ":=", "!=".
@@ -349,7 +402,8 @@ fn read_number(chars: &[char], start: usize) -> (String, usize) {
             (true, true) => "d'",
             (true, false) => "de ",
         };
-        return (format!("{prefix}{words} {link}{}", symbol.spoken(plural)), end - start);
+        let (currency, end) = currency_after(chars, end);
+        return (format!("{prefix}{words} {link}{}{currency}", symbol.spoken(plural)), end - start);
     }
 
     let int_words = integer_str(&int_digits);
@@ -503,6 +557,28 @@ mod tests {
         assert_eq!(norm("Le n° 5 et le n°7."), "Le numéro cinq et le numéro sept.");
         assert_eq!(norm("En 52 av. J.-C. Puis rien."), "En cinquante-deux avant Jésus-Christ. Puis rien.");
         assert_eq!(norm("Env. 3 km."), "Environ trois kilomètres.");
+    }
+
+    #[test]
+    fn scales_rates_and_symbols() {
+        assert_eq!(norm("Un budget de 3 Md€."), "Un budget de trois milliards d'euros.");
+        assert_eq!(norm("Soit 1,5 Md de dollars."), "Soit un virgule cinq milliard de dollars.");
+        assert_eq!(norm("Il faut 10 H/M."), "Il faut dix homme-mois.");
+        assert_eq!(norm("Il file à 11,2 km/s."), "Il file à onze virgule deux kilomètres par seconde.");
+        assert_eq!(norm("Si a > b et x < 3."), "Si a supérieur à b et x inférieur à trois.");
+        assert_eq!(norm("Si a ≥ b."), "Si a supérieur ou égal à b.");
+        assert_eq!(norm("Soit √2."), "Soit racine carrée de deux.");
+        assert_eq!(norm("Il coûte 5 €."), "Il coûte cinq euros.");
+        assert_eq!(norm("Il faut ~5 min."), "Il faut environ cinq minutes.");
+        assert_eq!(norm("Ouvre ~/projets."), "Ouvre home/projets.");
+    }
+
+    #[test]
+    fn markup_left_silent() {
+        assert_eq!(norm("Teste a <= b, a -> b et <div>."), "Teste a <= b, a -> b et <div>.");
+        assert_eq!(norm("> Une citation"), "Une citation.");
+        assert_eq!(norm("Du ~~barré~~ ici."), "Du barré ici.");
+        assert_eq!(norm("┌──┬──┐\n│ a │ b │\n├──┼──┤"), "a b.");
     }
 
     #[test]

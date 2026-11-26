@@ -121,6 +121,7 @@ const DOTTED: &[(&str, &str)] = &[
     ("chap.", "chapitre"),
     ("fig.", "figure"),
     ("n°", "numéro"),
+    ("H/M", "homme-mois"),
 ];
 
 fn capitalize(s: &str) -> String {

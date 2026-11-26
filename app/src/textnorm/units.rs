@@ -97,6 +97,8 @@ const UNITS: &[UnitDef] = &[
     u("°", "degré", "degrés"),
     u("°C", "degré Celsius", "degrés Celsius"),
     u("°F", "degré Fahrenheit", "degrés Fahrenheit"),
+    alone(u("Md", "milliard", "milliards")),
+    alone(u("Mds", "milliard", "milliards")),
 ];
 
 /// A unit as written: "m", "m²", "km/h", "m/s²".
