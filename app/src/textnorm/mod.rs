@@ -386,6 +386,15 @@ fn read_number(chars: &[char], start: usize) -> (String, usize) {
     };
     let unit = chars.get(unit_at).copied().filter(|c| matches!(c, '%' | '€' | '$'));
 
+    // The currency written out reads like its symbol: "12,50 euros" -> "douze euros cinquante".
+    if unit.is_none()
+        && let Some((',', cents)) = &decimal
+        && cents.len() == 2
+        && let Some((currency, end)) = currency_word(chars, unit_at)
+    {
+        return (format!("{prefix}{}", amount(&int_digits, currency, cents)), end - start);
+    }
+
     // Unit symbols: "10 m", "3 s", "50 km/h", "20 m²", "-5 °C".
     if unit.is_none()
         && let Some((symbol, end)) = read_unit(chars, unit_at)
@@ -409,11 +418,7 @@ fn read_number(chars: &[char], start: usize) -> (String, usize) {
     let int_words = integer_str(&int_digits);
     let words = match (unit, &decimal) {
         (Some(currency @ ('€' | '$')), Some((',', cents))) if cents.len() == 2 => {
-            let name = currency_name(currency, &int_digits);
-            match cents.as_str() {
-                "00" => format!("{int_words} {name}"),
-                _ => format!("{int_words} {name} {}", integer_str(cents)),
-            }
+            amount(&int_digits, currency, cents)
         }
         _ => {
             let words = with_decimal(int_words, &decimal);
@@ -426,6 +431,26 @@ fn read_number(chars: &[char], start: usize) -> (String, usize) {
     };
     let consumed = if unit.is_some() { unit_at + 1 } else { j };
     (format!("{prefix}{words}"), consumed - start)
+}
+
+/// An amount with its cents: "douze euros cinquante", "trois dollars".
+fn amount(int_digits: &str, currency: char, cents: &str) -> String {
+    let name = currency_name(currency, int_digits);
+    match cents {
+        "00" => format!("{} {name}", integer_str(int_digits)),
+        _ => format!("{} {name} {}", integer_str(int_digits), integer_str(cents)),
+    }
+}
+
+/// "euro(s)" or "dollar(s)" at `at`: the currency symbol it stands for, and where the word ends.
+fn currency_word(chars: &[char], at: usize) -> Option<(char, usize)> {
+    let end = (at..chars.len()).find(|&k| !chars[k].is_alphanumeric()).unwrap_or(chars.len());
+    let word: String = chars.get(at..end)?.iter().collect::<String>().to_lowercase();
+    match word.as_str() {
+        "euro" | "euros" => Some(('€', end)),
+        "dollar" | "dollars" => Some(('$', end)),
+        _ => None,
+    }
 }
 
 fn currency_name(currency: char, int_digits: &str) -> &'static str {
@@ -461,6 +486,10 @@ mod tests {
         assert_eq!(norm("Version 2.5 publiée."), "Version deux point cinq publiée.");
         assert_eq!(norm("Il coûte 3,50 €."), "Il coûte trois euros cinquante.");
         assert_eq!(norm("Il coûte 1 €."), "Il coûte un euro.");
+        assert_eq!(norm("Il coûte 12,50 euros."), "Il coûte douze euros cinquante.");
+        assert_eq!(norm("Soit 1,50 Euro et 3,00 dollars."), "Soit un euro cinquante et trois dollars.");
+        assert_eq!(norm("Il coûte 12,50euros."), "Il coûte douze euros cinquante.");
+        assert_eq!(norm("Soit 3,5 euros ou 2,50 europe."), "Soit trois virgule cinq euros ou deux virgule cinquante europe.");
         assert_eq!(norm("Il fait -5 degrés."), "Il fait moins cinq degrés.");
     }
 
