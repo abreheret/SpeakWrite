@@ -2,6 +2,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod audio;
+mod autostart;
 mod config;
 mod dictation;
 mod inject;
@@ -289,6 +290,8 @@ struct App {
     recording: SharedRecording,
     last_recording: Option<PathBuf>,
     paused: bool,
+    /// Read from the system at start-up: the autostart entry is the setting.
+    autostart: bool,
     /// The dictation key is held down (its auto-repeat sends more presses).
     dictating: bool,
     tray: Option<Tray>,
@@ -311,6 +314,7 @@ impl App {
             recording: Arc::new(Mutex::new(config.recording.clone())),
             last_recording: None,
             paused: false,
+            autostart: autostart::is_enabled(),
             paths,
             config,
             proxy,
@@ -349,6 +353,7 @@ impl App {
             recording: &self.config.recording,
             last_recording: self.last_recording.as_deref(),
             paused: self.paused,
+            autostart: self.autostart,
         }
     }
 
@@ -581,6 +586,7 @@ impl App {
                 self.set_dictation_options(insert, trailing_space);
             }
             Action::ToggleUiLanguage => self.set_ui_language(self.config.interface.language.other()),
+            Action::ToggleAutostart => self.toggle_autostart(),
             Action::OpenConfig => open_file(&self.paths.config_file),
             Action::Reload => self.reload(),
             Action::OpenLogs => open_file(&self.paths.log_dir),
@@ -609,6 +615,21 @@ impl App {
         if let Err(e) = config::save(&self.paths, |doc| doc["interface"]["language"] = toml_edit::value(ui.as_str())) {
             tracing::error!("{e:#}");
         }
+        self.refresh_tray();
+    }
+
+    fn toggle_autostart(&mut self) {
+        if let Err(e) = autostart::set(!self.autostart) {
+            tracing::error!("{e:#}");
+            show_error(&format!(
+                "{}\n\n{e:#}",
+                self.t(
+                    "Impossible de modifier le lancement à l'ouverture de session.",
+                    "Cannot change the start at login."
+                )
+            ));
+        }
+        self.autostart = autostart::is_enabled();
         self.refresh_tray();
     }
 

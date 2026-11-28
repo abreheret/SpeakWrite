@@ -195,6 +195,8 @@ Sans accès, le moteur de voix ne démarre pas et l'erreur indique `We could not
 2. **Lecture** : sélectionner un texte dans n'importe quelle application, puis appuyer sur **F9**.
 3. **Dictée** : cliquer dans un champ de texte, maintenir **F8**, parler, puis relâcher.
 
+Pour démarrer SpeakWrite avec la session, cocher « Lancer à l'ouverture de session » dans le menu de l'icône. Sous macOS, les autorisations vont alors à `speakwrite` lui-même, et non plus au Terminal depuis lequel il était lancé : à l'ouverture de session suivante, l'autoriser à nouveau dans « Accessibilité », « Surveillance de l'entrée » et « Micro » si les touches ou la dictée restent sans effet.
+
 Tous les réglages sont dans le menu de l'icône. Le fichier de configuration s'ouvre depuis « Réglages avancés ». Les raccourcis et les réglages sont décrits dans le [README](README.fr.md#utilisation).
 
 Commandes de diagnostic :
@@ -203,6 +205,7 @@ Commandes de diagnostic :
 speakwrite --say "Bonjour"                 # lit une phrase et mesure la latence
 speakwrite --normalize "Appuie sur F9"     # affiche le texte tel qu'il sera lu, avec sa langue
 speakwrite --transcribe audio.wav          # passe un fichier par la chaîne de dictée
+speakwrite --roundtrip                     # lit un corpus de phrases et le réécoute (TTS -> STT)
 ```
 
 Sous Windows, l'exécutable de la version release n'a pas de console. Pour voir sa sortie, passer par un tube :
@@ -220,7 +223,7 @@ Sous Windows, l'exécutable de la version release n'a pas de console. Pour voir 
 | Premier lancement très long | Téléchargement des modèles (environ 3,5 Go). La progression est dans les journaux, menu → « Ouvrir les journaux » |
 | La dictée n'écrit rien dans certaines fenêtres (Windows) | Les fenêtres lancées en administrateur refusent la frappe simulée. Lancer SpeakWrite en administrateur aussi, ou passer en mode collage (Dictée → « Coller tout au relâchement ») |
 | Linux : pas d'icône | GNOME demande l'extension AppIndicator. Sous Wayland, les raccourcis globaux et la frappe simulée dépendent du bureau ; X11 fonctionne |
-| macOS : touches ou dictée sans effet | Autoriser SpeakWrite dans Réglages Système → Confidentialité et sécurité : « Accessibilité », « Surveillance de l'entrée », « Micro » |
+| macOS : touches ou dictée sans effet | Autoriser SpeakWrite dans Réglages Système → Confidentialité et sécurité : « Accessibilité », « Surveillance de l'entrée », « Micro ». Lancé à l'ouverture de session, c'est `speakwrite` lui-même qui en a besoin, pas le Terminal |
 | macOS : `ld: tapi error: malformed file` … `unknown architecture` | L'éditeur de liens des Command Line Tools est plus ancien que le SDK le plus récent installé : voir ci-dessous |
 
 ### macOS : `tapi error: malformed file` à l'édition de liens

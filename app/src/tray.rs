@@ -36,6 +36,7 @@ pub enum Action {
     ChooseRecordingsFolder,
     /// Switches the menu between French and English.
     ToggleUiLanguage,
+    ToggleAutostart,
     OpenConfig,
     Reload,
     OpenLogs,
@@ -59,6 +60,8 @@ pub struct MenuState<'a> {
     pub last_recording: Option<&'a Path>,
     /// The current reading is paused.
     pub paused: bool,
+    /// This executable starts with the user session.
+    pub autostart: bool,
 }
 
 pub const SPEEDS: [f32; 11] = [0.8, 0.9, 1.0, 1.1, 1.2, 1.25, 1.3, 1.4, 1.5, 1.75, 2.0];
@@ -330,6 +333,11 @@ fn build_menu(state: &MenuState) -> Result<(Menu, HashMap<MenuId, Action>)> {
         Box::new(separator()),
         // Written in the other language, so that someone who cannot read this one finds it.
         Box::new(b.item(t("Menu in English", "Menu en français"), Action::ToggleUiLanguage)),
+        Box::new(b.check(
+            t("Lancer à l'ouverture de session", "Start at login"),
+            state.autostart,
+            Action::ToggleAutostart,
+        )),
         Box::new(b.item(t("Réglages avancés (fichier)…", "Advanced settings (file)…"), Action::OpenConfig)),
         Box::new(b.item(t("Recharger la configuration", "Reload the configuration"), Action::Reload)),
         Box::new(b.item(t("Ouvrir les journaux", "Open the logs"), Action::OpenLogs)),

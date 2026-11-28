@@ -73,6 +73,7 @@ Organisation de `app/src` :
 | `mic.rs`, `resample.rs` | Capture micro, passage en mono, rééchantillonnage à 24 kHz (sinc fenêtré) |
 | `inject.rs` | Écriture dans le champ actif : frappe Unicode, ou collage avec restauration du presse-papier |
 | `process.rs` | Le serveur de voix meurt avec l'app, même en cas de plantage (job object Windows, `PR_SET_PDEATHSIG` Linux) |
+| `autostart.rs` | Lancement à l'ouverture de session : valeur `Run` du registre (Windows), LaunchAgent (macOS), fichier d'autostart XDG (Linux). L'entrée sert de réglage |
 | `config.rs` | Fichier TOML commenté, emplacements standard de chaque OS, migration des anciens fichiers |
 | `roundtrip.rs` | Contrôle TTS → STT sur un corpus de phrases (`app/corpus/roundtrip.txt`) : chaque phrase est lue, réécoutée par le modèle de dictée, puis comparée |
 
@@ -148,6 +149,7 @@ Le **menu de l'icône** règle tout, sans toucher au fichier de configuration :
 - **Dictée** :
   - écrire au fil de la parole, ou tout coller au relâchement, pour les applications qui ignorent la frappe simulée ;
   - ajouter une espace après chaque dictée.
+- **Lancer à l'ouverture de session** : démarre SpeakWrite à l'ouverture de la session (Windows : clé `Run` du registre de l'utilisateur ; macOS : LaunchAgent ; Linux : `~/.config/autostart`). L'entrée pointe vers l'exécutable qui l'a activée : recompiler au même endroit la conserve, déplacer l'exécutable demande de recocher la case.
 - **Écouter un exemple**, langue du menu (`Menu in English` / `Menu en français`), réglages avancés (fichier), recharger, journaux, quitter.
 
 Chaque choix est enregistré dans `config.toml`, en conservant les commentaires du fichier.
@@ -277,7 +279,7 @@ Voix françaises (option `--voice`, chemins relatifs au dépôt [`kyutai/tts-voi
 3. ✅ **Dictée** : Kyutai STT en streaming, texte écrit dans le champ actif.
 4. ⏸️ **TTS 1.6B dans l'app** : bloqué en pur Rust. Le modèle publié utilise `demux_second_stream` et un *weights-per-step schedule* que le crate `moshi` 0.6.1 n'implémente pas, et Kyutai ne publie pas de poids convertis pour Rust. Pistes : un serveur Python lancé par l'app, ou un fork du crate `moshi`.
 5. 🔜 **Finitions**
-   - démarrage automatique avec la session ;
+   - ✅ démarrage automatique avec la session (menu de l'icône → « Lancer à l'ouverture de session ») ;
    - reprise si la sortie audio change (casque branché en cours de route) ;
    - ✅ tests automatiques TTS → STT sur un corpus de phrases (`speakwrite --roundtrip`) ;
    - mise à jour vers les dernières crates après `rustup update` (tray-icon 0.26 exige Rust 1.90) ;

@@ -73,6 +73,7 @@ Layout of `app/src`:
 | `mic.rs`, `resample.rs` | Microphone capture, mono mixdown, resampling to 24 kHz (windowed sinc) |
 | `inject.rs` | Writing into the focused field: Unicode keystrokes, or paste with clipboard restore |
 | `process.rs` | The voice server dies with the app, even on a crash (Windows job object, Linux `PR_SET_PDEATHSIG`) |
+| `autostart.rs` | Start at login: `Run` registry value (Windows), LaunchAgent (macOS), XDG autostart file (Linux). The entry is the setting |
 | `config.rs` | Commented TOML file, standard per-OS locations, migration of older files |
 | `roundtrip.rs` | TTS → STT check over a sentence corpus (`app/corpus/roundtrip.txt`): each sentence is read, heard back by the dictation model and compared |
 
@@ -148,6 +149,7 @@ The **tray menu** covers everything, without editing the configuration file:
 - **Dictation**:
   - type as you speak, or paste everything on release, for apps that ignore simulated keystrokes;
   - add a trailing space after each dictation.
+- **Start at login**: launches SpeakWrite when the session opens (Windows: `Run` registry key of the user; macOS: LaunchAgent; Linux: `~/.config/autostart`). The entry points at the executable that enabled it: rebuilding in place keeps it, moving the executable needs ticking the box again.
 - **Play a sample**, menu language (`Menu in English` / `Menu en français`), advanced settings (file), reload, logs, quit.
 
 Every choice is saved to `config.toml`, keeping the file's comments.
@@ -279,7 +281,7 @@ French voices (`--voice`, paths relative to the [`kyutai/tts-voices`](https://hu
 3. ✅ **Dictation**: streamed Kyutai STT, text typed into the focused field.
 4. ⏸️ **TTS 1.6B in the app**: blocked in pure Rust. The released model uses `demux_second_stream` and a weights-per-step schedule that the `moshi` crate 0.6.1 does not implement, and Kyutai publishes no Rust-converted weights. Options: a Python server started by the app, or a fork of the `moshi` crate.
 5. 🔜 **Polish**
-   - start with the user session;
+   - ✅ start with the user session (tray menu → `Start at login`);
    - recover when the audio output changes (headset plugged in);
    - ✅ automatic TTS → STT tests on a sentence corpus (`speakwrite --roundtrip`);
    - upgrade to the latest crates after `rustup update` (tray-icon 0.26 needs Rust 1.90);

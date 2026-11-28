@@ -195,6 +195,8 @@ Without access, the voice engine does not start and the error says `We could not
 2. **Reading**: select text in any application, then press **F9**.
 3. **Dictation**: click in a text field, hold **F8**, speak, then release.
 
+To start SpeakWrite with the session, tick `Start at login` in the tray menu. On macOS, permissions then go to `speakwrite` itself rather than to the Terminal it was started from: at the next login, allow it again in "Accessibility", "Input Monitoring" and "Microphone" if hotkeys or dictation do nothing.
+
 All settings are in the tray menu. It starts in French: click `Menu in English` to switch it to English. The configuration file opens from `Advanced settings (file)…`. Hotkeys and settings are described in the [README](README.md#usage).
 
 Diagnostic commands:
@@ -203,6 +205,7 @@ Diagnostic commands:
 speakwrite --say "Bonjour"                 # speaks a sentence and measures latency
 speakwrite --normalize "Appuie sur F9"     # prints the text as it will be read, with its language
 speakwrite --transcribe audio.wav          # runs a file through the dictation pipeline
+speakwrite --roundtrip                     # reads a sentence corpus and hears it back (TTS -> STT)
 ```
 
 On Windows, the release executable has no console. To see its output, pipe it:
@@ -220,7 +223,7 @@ On Windows, the release executable has no console. To see its output, pipe it:
 | Very long first launch | Model download (about 3.5 GB). Progress is in the logs, menu → `Open the logs` |
 | Dictation types nothing into some windows (Windows) | Windows running as administrator reject simulated keystrokes. Run SpeakWrite as administrator too, or use paste mode (`Dictation` → `Paste everything on release`) |
 | Linux: no icon | GNOME needs the AppIndicator extension. On Wayland, global hotkeys and simulated typing depend on the desktop; X11 works |
-| macOS: hotkeys or dictation do nothing | Allow SpeakWrite in System Settings → Privacy & Security: "Accessibility", "Input Monitoring", "Microphone" |
+| macOS: hotkeys or dictation do nothing | Allow SpeakWrite in System Settings → Privacy & Security: "Accessibility", "Input Monitoring", "Microphone". Started at login, it is `speakwrite` itself that needs them, not the Terminal |
 | macOS: `ld: tapi error: malformed file` … `unknown architecture` | The Command Line Tools linker is older than the newest SDK installed: see below |
 
 ### macOS: `tapi error: malformed file` when linking
