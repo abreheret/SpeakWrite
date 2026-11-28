@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Windows installer of SpeakWrite, built by CI with WiX Toolset 5 (Windows only):
-    dotnet tool install --global wix --version 5.0.2
-    wix build packaging\windows\speakwrite.wxs -arch x64 -d Version=0.1.0 -d RepoDir=. -o speakwrite.msi
+  Windows installer of SpeakWrite, built by CI with WiX Toolset 5 (Windows only); see the
+  "Windows installer" step of .github/workflows/_build.yml for the commands.
+  XML comments cannot hold two hyphens in a row: no command lines here.
 
   Per-user install, without administrator rights: %LOCALAPPDATA%\Programs\SpeakWrite, plus a
   Start menu shortcut. Installing a newer version replaces the older one (same UpgradeCode).
