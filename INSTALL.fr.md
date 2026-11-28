@@ -4,7 +4,27 @@
 
 Ce guide part d'une machine vierge : outils, compilation, modèles, premier lancement.
 
-## En bref
+## Sans compiler : les installeurs
+
+Chaque [release](https://github.com/abreheret/SpeakWrite/releases/latest) fournit :
+
+| Système | Fichier | Installation |
+|---|---|---|
+| Windows 10 ou 11, x64 | `speakwrite-windows-x64.msi` | Double-cliquer dessus. Installe pour l'utilisateur courant, sans droits administrateur, dans `%LOCALAPPDATA%\Programs\SpeakWrite`, avec un raccourci dans le menu Démarrer |
+| macOS, Apple silicon | `speakwrite-macos-arm64.dmg` | L'ouvrir, puis glisser SpeakWrite dans Applications |
+| Linux x64 | `speakwrite-linux-x64.tar.gz` | L'extraire, puis lancer `speakwrite`. Demande GTK 3, libayatana-appindicator3, libxdo et ALSA (fournis par les paquets de la [section 2](#2-installer-les-outils)) |
+
+Les archives `.zip` et `.tar.gz` contiennent l'exécutable seul, pour le lancer sans installation.
+
+Les installeurs ne sont pas signés par un certificat d'éditeur :
+- **Windows** : SmartScreen affiche « Windows a protégé votre ordinateur ». Cliquer sur « Informations complémentaires », puis « Exécuter quand même ».
+- **macOS** : la première ouverture est bloquée. Ouvrir Réglages Système → Confidentialité et sécurité, puis cliquer sur « Ouvrir quand même » en face de SpeakWrite. L'autoriser ensuite dans « Accessibilité », « Surveillance de l'entrée » et « Micro ». Après une mise à jour, macOS peut redemander.
+
+Dans ces versions, la dictée tourne sur le processeur sous Windows et Linux, plus lentement, et avec Metal sous macOS. Pour la dictée sur une carte NVIDIA, compiler SpeakWrite avec CUDA (ci-dessous).
+
+Pour désinstaller : Windows → Paramètres → Applications → SpeakWrite ; macOS → mettre SpeakWrite d'Applications à la corbeille. Décocher « Lancer à l'ouverture de session » avant. Les modèles et les réglages restent dans les dossiers indiqués dans le [README](README.fr.md#configuration).
+
+## En bref : compiler
 
 ```sh
 git clone https://github.com/abreheret/SpeakWrite.git

@@ -53,22 +53,36 @@ jobs:
         shell: bash
         run: cargo test --locked --release -p speakwrite ${{ inputs.features && format('--features {0}', inputs.features) || '' }}
 
+      # Archive of the executable and the docs, usable without installing.
       - name: Package
         shell: bash
         run: |
           dir="speakwrite-${{ inputs.name }}"
-          mkdir "$dir"
+          mkdir -p dist "$dir"
           cp "target/release/${{ inputs.exe }}" README.md README.fr.md INSTALL.md INSTALL.fr.md LICENSE "$dir/"
           if [ "$RUNNER_OS" = "Windows" ]; then
-            7z a "$dir.zip" "$dir"
-            echo "ASSET=$dir.zip" >> "$GITHUB_ENV"
+            7z a "dist/$dir.zip" "$dir"
           else
-            tar czf "$dir.tar.gz" "$dir"
-            echo "ASSET=$dir.tar.gz" >> "$GITHUB_ENV"
+            tar czf "dist/$dir.tar.gz" "$dir"
           fi
+
+      # Per-user MSI installer: packaging/windows/speakwrite.wxs.
+      - name: Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
+          $version = (cargo pkgid -p speakwrite) -replace '.*@', ''
+          wix build packaging\windows\speakwrite.wxs -arch x64 -d "Version=$version" -d "RepoDir=$env:GITHUB_WORKSPACE" -o "dist\speakwrite-${{ inputs.name }}.msi"
+
+      # SpeakWrite.app in a disk image: scripts/package-macos.sh.
+      - name: macOS disk image
+        if: runner.os == 'macOS'
+        run: ./scripts/package-macos.sh "dist/speakwrite-${{ inputs.name }}.dmg"
 
       - uses: actions/upload-artifact@v4
         with:
           name: speakwrite-${{ inputs.name }}
-          path: ${{ env.ASSET }}
+          path: dist/
           if-no-files-found: error

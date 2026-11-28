@@ -4,7 +4,27 @@
 
 This guide starts from a clean machine: tools, build, models, first launch.
 
-## In short
+## Without building: the installers
+
+Each [release](https://github.com/abreheret/SpeakWrite/releases/latest) provides:
+
+| System | File | Installation |
+|---|---|---|
+| Windows 10 or 11, x64 | `speakwrite-windows-x64.msi` | Double-click it. Installs for the current user, without administrator rights, in `%LOCALAPPDATA%\Programs\SpeakWrite`, with a Start menu shortcut |
+| macOS, Apple silicon | `speakwrite-macos-arm64.dmg` | Open it, then drag SpeakWrite into Applications |
+| Linux x64 | `speakwrite-linux-x64.tar.gz` | Extract it, then run `speakwrite`. Needs GTK 3, libayatana-appindicator3, libxdo and ALSA (the packages of [section 2](#2-installing-the-tools) provide them) |
+
+The `.zip` and `.tar.gz` archives hold the executable alone, to run it without installing.
+
+The installers are not signed with a publisher certificate:
+- **Windows**: SmartScreen shows "Windows protected your PC". Click "More info", then "Run anyway".
+- **macOS**: the first opening is blocked. Open System Settings → Privacy & Security, then click "Open Anyway" next to SpeakWrite. Then allow it in "Accessibility", "Input Monitoring" and "Microphone". After an update, macOS may ask again.
+
+In these builds, dictation runs on the CPU on Windows and Linux, more slowly, and with Metal on macOS. For dictation on an NVIDIA card, build SpeakWrite with CUDA (below).
+
+To uninstall: Windows → Settings → Apps → SpeakWrite; macOS → move SpeakWrite from Applications to the Trash. Untick `Start at login` beforehand. Models and settings stay in the folders listed in the [README](README.md#configuration).
+
+## In short: building
 
 ```sh
 git clone https://github.com/abreheret/SpeakWrite.git

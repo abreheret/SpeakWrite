@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Windows installer of SpeakWrite, built by CI with WiX Toolset 5 (Windows only):
+    dotnet tool install --global wix --version 5.0.2
+    wix build packaging\windows\speakwrite.wxs -arch x64 -d Version=0.1.0 -d RepoDir=. -o speakwrite.msi
+
+  Per-user install, without administrator rights: %LOCALAPPDATA%\Programs\SpeakWrite, plus a
+  Start menu shortcut. Installing a newer version replaces the older one (same UpgradeCode).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="SpeakWrite"
+    Manufacturer="Amaury Bréhéret"
+    Version="$(var.Version)"
+    UpgradeCode="6BAAE4CC-07DD-4551-AF4F-AD2E8957A389"
+    Scope="perUser"
+    Compressed="yes">
+
+    <MajorUpgrade
+      AllowSameVersionUpgrades="yes"
+      DowngradeErrorMessage="A newer version of SpeakWrite is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Files in the user profile: each component's key path is a registry value under HKCU,
+         and the folders it creates are removed on uninstall. -->
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="UserProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="SpeakWrite">
+          <Component Id="App" Guid="5C1BFF10-380C-430A-BD49-9CF18D81BB7B">
+            <File Id="SpeakWriteExe" Source="$(var.RepoDir)\target\release\speakwrite.exe" KeyPath="no" />
+            <File Id="License" Source="$(var.RepoDir)\LICENSE" Name="LICENSE.txt" KeyPath="no" />
+            <File Id="Readme" Source="$(var.RepoDir)\README.md" KeyPath="no" />
+            <File Id="ReadmeFr" Source="$(var.RepoDir)\README.fr.md" KeyPath="no" />
+            <RegistryValue Root="HKCU" Key="Software\SpeakWrite" Name="InstallFolder" Type="string"
+              Value="[INSTALLFOLDER]" KeyPath="yes" />
+            <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+            <RemoveFolder Id="RemoveUserProgramsFolder" Directory="UserProgramsFolder" On="uninstall" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="336506CF-27C9-4E90-A230-4067A9F810D1">
+        <Shortcut Id="SpeakWriteShortcut" Name="SpeakWrite"
+          Description="Read the selected text aloud and dictate"
+          Target="[INSTALLFOLDER]speakwrite.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\SpeakWrite" Name="StartMenuShortcut" Type="integer"
+          Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main">
+      <ComponentRef Id="App" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Package>
+</Wix>

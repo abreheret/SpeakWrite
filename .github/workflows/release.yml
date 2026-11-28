@@ -1,5 +1,6 @@
 # A tag "v*" (git tag v0.1.0 && git push origin v0.1.0) builds the three platforms,
-# then publishes a GitHub Release with the binaries attached.
+# then publishes a GitHub Release with the installers and archives attached, its text taken
+# from .github/release-notes.md.
 name: Release
 
 on:
@@ -37,6 +38,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -45,4 +48,5 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+          body_path: .github/release-notes.md
           generate_release_notes: true

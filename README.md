@@ -91,6 +91,8 @@ Layout of `app/src`:
 
 ### Build and run
 
+**Without building**: MSI installer for Windows, disk image for macOS, archive for Linux, on the [releases page](https://github.com/abreheret/SpeakWrite/releases/latest). See [INSTALL.md](INSTALL.md#without-building-the-installers).
+
 **Step-by-step guide, from a clean machine to the first launch: [INSTALL.md](INSTALL.md)**. It covers the tools, the build, the downloaded models, your own voice and common problems.
 
 The scripts enable GPU acceleration for dictation automatically: CUDA when `nvcc` is found, Metal on macOS, CPU otherwise.
@@ -286,7 +288,7 @@ French voices (`--voice`, paths relative to the [`kyutai/tts-voices`](https://hu
    - ✅ automatic TTS → STT tests on a sentence corpus (`speakwrite --roundtrip`);
    - ✅ upgrade to the latest crates (Rust 1.92; candle stays on 0.9 for moshi, hf-hub on 0.4);
    - tests on Linux and macOS;
-   - per-OS packages.
+   - ✅ per-OS packages: MSI (Windows), DMG (macOS), archive (Linux), attached to each release.
 
 ## Development
 

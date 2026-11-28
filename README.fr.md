@@ -91,6 +91,8 @@ Organisation de `app/src` :
 
 ### Compiler et lancer
 
+**Sans compiler** : installeur MSI pour Windows, image disque pour macOS, archive pour Linux, sur la [page des releases](https://github.com/abreheret/SpeakWrite/releases/latest). Voir [INSTALL.fr.md](INSTALL.fr.md#sans-compiler--les-installeurs).
+
 **Guide pas à pas, d'une machine vierge jusqu'au premier lancement : [INSTALL.fr.md](INSTALL.fr.md)**. Il couvre les outils, la compilation, les modèles téléchargés, la voix personnelle et les problèmes fréquents.
 
 Les scripts activent tout seuls l'accélération graphique de la dictée : CUDA si `nvcc` est présent, Metal sous macOS, processeur sinon.
@@ -284,7 +286,7 @@ Voix françaises (option `--voice`, chemins relatifs au dépôt [`kyutai/tts-voi
    - ✅ tests automatiques TTS → STT sur un corpus de phrases (`speakwrite --roundtrip`) ;
    - ✅ mise à jour vers les dernières crates (Rust 1.92 ; candle reste en 0.9 pour moshi, hf-hub en 0.4) ;
    - tests sous Linux et macOS ;
-   - paquets par OS.
+   - ✅ paquets par OS : MSI (Windows), DMG (macOS), archive (Linux), joints à chaque release.
 
 ## Développement
 

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Info.plist of SpeakWrite.app; scripts/package-macos.sh replaces @VERSION@. -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>SpeakWrite</string>
+    <key>CFBundleDisplayName</key>
+    <string>SpeakWrite</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.github.abreheret.speakwrite</string>
+    <key>CFBundleExecutable</key>
+    <string>speakwrite</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@VERSION@</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <!-- Menu bar app: no Dock icon, no application menu. -->
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <!-- Without it, macOS kills an app bundle that opens the microphone. -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Dictée : SpeakWrite écoute le micro pendant que la touche de dictée est maintenue. Dictation: SpeakWrite listens to the microphone while the dictation key is held.</string>
+</dict>
+</plist>
