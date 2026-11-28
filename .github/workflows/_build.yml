@@ -75,6 +75,8 @@ jobs:
           $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
           $version = (cargo pkgid -p speakwrite) -replace '.*@', ''
           wix build packaging\windows\speakwrite.wxs -arch x64 -d "Version=$version" -d "RepoDir=$env:GITHUB_WORKSPACE" -o "dist\speakwrite-${{ inputs.name }}.msi"
+          # Debug symbols of the installer: not for the release.
+          Remove-Item "dist\*.wixpdb"
 
       # SpeakWrite.app in a disk image: scripts/package-macos.sh.
       - name: macOS disk image
