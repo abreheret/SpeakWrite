@@ -11,6 +11,7 @@ mod process;
 mod reader;
 mod recorder;
 mod resample;
+mod roundtrip;
 mod selection;
 mod stretch;
 mod stt;
@@ -77,8 +78,13 @@ fn main() {
             }
             Ok(())
         }
+        // TTS -> STT over a corpus: `speakwrite --roundtrip [corpus.txt]`.
+        Some("--roundtrip") => {
+            let file = (args.len() > 1).then(|| PathBuf::from(args[1..].join(" ")));
+            roundtrip::run(&paths, &load_config(&paths), file.as_deref())
+        }
         Some(other) => Err(anyhow::anyhow!(
-            "unknown argument {other} (use --say, --transcribe or --normalize)"
+            "unknown argument {other} (use --say, --transcribe, --normalize or --roundtrip)"
         )),
         None => run(paths, log_guard),
     };

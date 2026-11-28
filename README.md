@@ -74,6 +74,7 @@ Layout of `app/src`:
 | `inject.rs` | Writing into the focused field: Unicode keystrokes, or paste with clipboard restore |
 | `process.rs` | The voice server dies with the app, even on a crash (Windows job object, Linux `PR_SET_PDEATHSIG`) |
 | `config.rs` | Commented TOML file, standard per-OS locations, migration of older files |
+| `roundtrip.rs` | TTS → STT check over a sentence corpus (`app/corpus/roundtrip.txt`): each sentence is read, heard back by the dictation model and compared |
 
 ### Platform constraints
 
@@ -184,10 +185,15 @@ Only use your own voice, or the voice of someone who gave explicit consent.
 speakwrite --normalize "Appuie sur F9 : 3,5 % en 2026"   # prints the text as it will be read, with its language
 speakwrite --say "Bonjour"                               # speaks a sentence and measures latency
 speakwrite --transcribe audio.wav                        # runs a file through the dictation pipeline
+speakwrite --roundtrip                                   # reads the built-in corpus and hears it back (TTS -> STT)
+speakwrite --roundtrip corpus.txt                        # same with your own corpus, one sentence per line
+SPEAKWRITE_ROUNDTRIP_WAV=dir speakwrite --roundtrip      # also saves the audio of failed sentences
 SPEAKWRITE_SAY_WAV=out.wav speakwrite --say "..."        # also saves the received audio (WAV)
 SPEAKWRITE_SAY_MP3=out.mp3 speakwrite --say "..."        # same, as MP3
 SPEAKWRITE_LOG=debug speakwrite                          # verbose logs
 ```
+
+`--roundtrip` checks pronunciation after a change to the text preparation, the voice or pocket-tts. Each sentence of the corpus is prepared as for a reading, spoken with the configured voice (speed 1×), transcribed by Kyutai STT, then both texts are compared, accents and punctuation ignored. A sentence fails when more than 10 % of its characters are misheard on three readings in a row. The command lists them with what was said and what was heard, and exits with an error. It takes about 2 minutes on an Apple M-series Mac.
 
 Measurements on Windows 11, RTX 4090:
 
@@ -275,7 +281,7 @@ French voices (`--voice`, paths relative to the [`kyutai/tts-voices`](https://hu
 5. 🔜 **Polish**
    - start with the user session;
    - recover when the audio output changes (headset plugged in);
-   - automatic TTS → STT tests on a sentence corpus;
+   - ✅ automatic TTS → STT tests on a sentence corpus (`speakwrite --roundtrip`);
    - upgrade to the latest crates after `rustup update` (tray-icon 0.26 needs Rust 1.90);
    - tests on Linux and macOS;
    - per-OS packages.

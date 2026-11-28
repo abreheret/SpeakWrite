@@ -1,0 +1,76 @@
+# Corpus of `speakwrite --roundtrip`: one sentence per line, read by the voice engine and
+# heard back by the dictation model. Lines starting with "#" are comments.
+# Each line is tested alone: English lines need 20 letters or more, shorter ones are read in French.
+# Words the dictation model does not know cannot be checked this way: "confer" (cf.) comes back
+# as "qu'on fait", a lone variable "a" as "il y a".
+
+# Phrases courantes
+Bonjour, je m'appelle Claire et je travaille à Lyon depuis trois ans.
+Le chien dort sur le canapé pendant que la pluie tombe dehors.
+Pouvez-vous m'envoyer le rapport avant la réunion de demain matin ?
+Les enfants jouent dans le jardin, puis ils rentrent pour le goûter.
+Il faut absolument que nous trouvions une solution avant la fin de la semaine.
+
+# Nombres, dates et heures
+En 2026, la population a dépassé 68 millions d'habitants.
+Il y a 12 345 lignes dans ce fichier.
+Le 1er mai, la plupart des magasins sont fermés.
+C'est la 3e fois que je te le répète.
+Appelle-moi au 06 12 34 56 78 ce soir.
+La température est descendue à -5 degrés cette nuit.
+Rendez-vous à 14h30 devant la gare.
+Le train part à 8h et arrive à 11h45.
+La version 2.5 du logiciel est sortie hier.
+
+# Pourcentages et monnaies
+Cette année, les prix ont augmenté de 3,5 %.
+Ce livre coûte 12,50 € en librairie.
+Un budget de 3 Md€ a été voté par le parlement.
+Une erreur de ± 2 % reste acceptable.
+
+# Unités
+Il roule à 50 km/h en ville.
+Ils ont acheté un appartement de 45 m² au centre-ville.
+Il fait -5 °C ce matin à Paris.
+L'accélération de la pesanteur vaut 9,81 m/s².
+Le fichier fait 3 Go et le téléchargement dure 2 min.
+Un signal à 440 Hz sert de référence aux musiciens.
+Il mesure 1 m 80 et pèse 75 kg.
+Sur ce serveur, la latence moyenne est de 150 ms.
+Le prix au m² a encore augmenté.
+
+# Lettres grecques et mathématiques
+Soit Δt petit et λ fixé.
+Si x ≤ 10 et 3 < x, la valeur est acceptée.
+La racine √2 vaut environ 1,41.
+On suppose x ≈ 3,14 et y ≠ 0.
+Une résistance de 10 kΩ protège la diode.
+
+# Abréviations
+Merci bcp, svp réponds vite.
+tkt, on se voit pdt les vacances.
+Il y a qqn qui a qqch pr toi.
+M. Dupont et Mme Durand sont arrivés en retard.
+Le Dr Martin reçoit ses patients le lundi.
+Un fruit, c.-à-d. une pomme ou une poire.
+Voir p. 12 pour la liste complète des tarifs.
+Le n° 5 est le numéro gagnant.
+En 52 av. J.-C., César assiège Alésia.
+Ce projet demande 10 H/M de travail.
+
+# Informatique et touches
+Appuie sur F9 pour lire, et sur F10 pour mettre en pause.
+Enregistre la lecture dans un fichier MP3.
+La SNCF annonce des retards sur toutes les lignes.
+
+# Markdown et tableaux
+Du **gras**, de l'*italique* et du `code` dans la même phrase.
+> Une citation mise en exergue dans le texte.
+│ Prénom │ Ville │ Âge │
+
+# English
+The quick brown fox jumps over the lazy dog near the river bank.
+Press F9 to read the selection aloud, and F10 to pause the reading.
+The meeting starts at 3:30 pm on Tuesday, in the main conference room.
+Prices rose by 3.5% last year, reaching $12.50 per unit.
+Please send me the final report before tomorrow morning.

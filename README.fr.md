@@ -74,6 +74,7 @@ Organisation de `app/src` :
 | `inject.rs` | Écriture dans le champ actif : frappe Unicode, ou collage avec restauration du presse-papier |
 | `process.rs` | Le serveur de voix meurt avec l'app, même en cas de plantage (job object Windows, `PR_SET_PDEATHSIG` Linux) |
 | `config.rs` | Fichier TOML commenté, emplacements standard de chaque OS, migration des anciens fichiers |
+| `roundtrip.rs` | Contrôle TTS → STT sur un corpus de phrases (`app/corpus/roundtrip.txt`) : chaque phrase est lue, réécoutée par le modèle de dictée, puis comparée |
 
 ### Contraintes par plateforme
 
@@ -182,10 +183,15 @@ N'utiliser que sa propre voix, ou celle d'une personne qui a donné son accord e
 speakwrite --normalize "Appuie sur F9 : 3,5 % en 2026"   # affiche le texte tel qu'il sera lu, avec sa langue
 speakwrite --say "Bonjour"                               # lit une phrase et mesure la latence
 speakwrite --transcribe audio.wav                        # passe un fichier par la chaîne de dictée
+speakwrite --roundtrip                                   # lit le corpus intégré et le réécoute (TTS -> STT)
+speakwrite --roundtrip corpus.txt                        # idem avec son propre corpus, une phrase par ligne
+SPEAKWRITE_ROUNDTRIP_WAV=dossier speakwrite --roundtrip  # enregistre aussi l'audio des phrases en échec
 SPEAKWRITE_SAY_WAV=sortie.wav speakwrite --say "..."     # enregistre aussi l'audio reçu (WAV)
 SPEAKWRITE_SAY_MP3=sortie.mp3 speakwrite --say "..."     # idem en MP3
 SPEAKWRITE_LOG=debug speakwrite                          # journaux détaillés
 ```
+
+`--roundtrip` vérifie la prononciation après une modification de la préparation du texte, de la voix ou de pocket-tts. Chaque phrase du corpus est préparée comme pour une lecture, lue avec la voix configurée (vitesse 1×), transcrite par Kyutai STT, puis les deux textes sont comparés, sans tenir compte des accents ni de la ponctuation. Une phrase échoue si plus de 10 % de ses caractères sont mal entendus, trois lectures de suite. La commande les liste avec ce qui a été dit et ce qui a été entendu, et se termine en erreur. Compter environ 2 minutes sur un Mac à puce Apple.
 
 Mesures sous Windows 11, RTX 4090 :
 
@@ -273,7 +279,7 @@ Voix françaises (option `--voice`, chemins relatifs au dépôt [`kyutai/tts-voi
 5. 🔜 **Finitions**
    - démarrage automatique avec la session ;
    - reprise si la sortie audio change (casque branché en cours de route) ;
-   - tests automatiques TTS → STT sur un corpus de phrases ;
+   - ✅ tests automatiques TTS → STT sur un corpus de phrases (`speakwrite --roundtrip`) ;
    - mise à jour vers les dernières crates après `rustup update` (tray-icon 0.26 exige Rust 1.90) ;
    - tests sous Linux et macOS ;
    - paquets par OS.
