@@ -104,7 +104,7 @@ scripts\build.cmd                    # Windows: loads the Visual Studio environm
 Without the scripts: `cargo build --release -p speakwrite --features cuda`, or `--features metal`, or no feature for CPU.
 
 Requirements:
-- Rust ≥ 1.88 and CMake;
+- Rust ≥ 1.92 and CMake;
 - Windows: Visual Studio Build Tools (C++); CUDA Toolkit 12.x for GPU dictation;
 - Linux: `build-essential cmake pkg-config libssl-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libasound2-dev`.
 
@@ -284,7 +284,7 @@ French voices (`--voice`, paths relative to the [`kyutai/tts-voices`](https://hu
    - ✅ start with the user session (tray menu → `Start at login`);
    - recover when the audio output changes (headset plugged in);
    - ✅ automatic TTS → STT tests on a sentence corpus (`speakwrite --roundtrip`);
-   - upgrade to the latest crates after `rustup update` (tray-icon 0.26 needs Rust 1.90);
+   - ✅ upgrade to the latest crates (Rust 1.92; candle stays on 0.9 for moshi, hf-hub on 0.4);
    - tests on Linux and macOS;
    - per-OS packages.
 

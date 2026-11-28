@@ -10,13 +10,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use sha2::{Digest, Sha256};
-use symphonia::core::audio::SampleBuffer;
-use symphonia::core::codecs::DecoderOptions;
+use symphonia::core::codecs::audio::AudioDecoderOptions;
 use symphonia::core::errors::Error as DecodeError;
-use symphonia::core::formats::FormatOptions;
+use symphonia::core::formats::probe::Hint;
+use symphonia::core::formats::{FormatOptions, TrackType};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
 
 /// Bump when the processing changes, to invalidate cached voices.
 const PREP_VERSION: u32 = 1;
@@ -78,26 +77,28 @@ pub fn decode_mono(path: &Path) -> Result<(Vec<f32>, u32)> {
     if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
         hint.with_extension(extension);
     }
-    let probed = symphonia::default::get_probe()
-        .format(&hint, stream, &FormatOptions::default(), &MetadataOptions::default())
+    let mut format = symphonia::default::get_probe()
+        .probe(&hint, stream, FormatOptions::default(), MetadataOptions::default())
         .with_context(|| format!("unsupported audio file: {}", path.display()))?;
-    let mut format = probed.format;
-    let track = format.default_track().context("no audio track")?;
+    let track = format.default_track(TrackType::Audio).context("no audio track")?;
     let track_id = track.id;
-    let mut sample_rate = track.codec_params.sample_rate;
+    let params = track.codec_params.as_ref().and_then(|p| p.audio()).context("no audio track")?;
+    let mut sample_rate = params.sample_rate;
     let mut decoder = symphonia::default::get_codecs()
-        .make(&track.codec_params, &DecoderOptions::default())
+        .make_audio_decoder(params, &AudioDecoderOptions::default())
         .context("unsupported audio codec")?;
 
     let mut mono = Vec::new();
+    let mut interleaved: Vec<f32> = Vec::new();
     loop {
         let packet = match format.next_packet() {
-            Ok(packet) => packet,
+            Ok(Some(packet)) => packet,
+            Ok(None) => break,
             Err(DecodeError::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
             Err(DecodeError::ResetRequired) => break,
             Err(e) => return Err(e).context("cannot read the audio file"),
         };
-        if packet.track_id() != track_id {
+        if packet.track_id != track_id {
             continue;
         }
         let decoded = match decoder.decode(&packet) {
@@ -105,12 +106,11 @@ pub fn decode_mono(path: &Path) -> Result<(Vec<f32>, u32)> {
             Err(DecodeError::DecodeError(_)) => continue, // corrupt packet: skip it
             Err(e) => return Err(e).context("cannot decode the audio file"),
         };
-        let spec = *decoded.spec();
-        let rate = *sample_rate.get_or_insert(spec.rate);
-        let channels = spec.channels.count().max(1);
-        let mut buffer = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
-        buffer.copy_interleaved_ref(decoded);
-        mono.extend(buffer.samples().chunks(channels).map(|f| f.iter().sum::<f32>() / channels as f32));
+        let rate = *sample_rate.get_or_insert(decoded.spec().rate());
+        let channels = decoded.spec().channels().count().max(1);
+        interleaved.resize(decoded.samples_interleaved(), 0.0);
+        decoded.copy_to_slice_interleaved(&mut interleaved);
+        mono.extend(interleaved.chunks(channels).map(|f| f.iter().sum::<f32>() / channels as f32));
         if mono.len() > MAX_DECODED_SECONDS * rate as usize {
             break;
         }

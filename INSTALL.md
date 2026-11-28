@@ -42,7 +42,7 @@ Hardware:
 
 You need:
 - Git;
-- Rust 1.88 or newer;
+- Rust 1.92 or newer;
 - CMake 3.5 or newer (CMake 4 is fine);
 - a C/C++ compiler.
 
@@ -69,7 +69,7 @@ The last package installs Microsoft's C++ compiler (the "Desktop development wit
 Close and reopen the terminal so that the `PATH` is updated, then check:
 
 ```powershell
-rustc --version   # 1.88 or newer
+rustc --version   # 1.92 or newer
 cmake --version
 ```
 
@@ -97,7 +97,7 @@ The Rust installer puts `cargo` and `rustc` in `~/.cargo/bin`, which is not yet 
 
 ```sh
 source "$HOME/.cargo/env"
-rustc --version   # 1.88 or newer
+rustc --version   # 1.92 or newer
 cargo --version
 ```
 

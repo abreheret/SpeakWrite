@@ -42,7 +42,7 @@ Matériel :
 
 Il faut :
 - Git ;
-- Rust 1.88 ou plus récent ;
+- Rust 1.92 ou plus récent ;
 - CMake 3.5 ou plus récent (CMake 4 convient) ;
 - un compilateur C/C++.
 
@@ -69,7 +69,7 @@ Le dernier paquet installe le compilateur C++ de Microsoft (charge de travail «
 Fermer puis rouvrir le terminal pour prendre en compte le `PATH`, puis vérifier :
 
 ```powershell
-rustc --version   # 1.88 ou plus
+rustc --version   # 1.92 ou plus
 cmake --version
 ```
 
@@ -97,7 +97,7 @@ L'installateur de Rust place `cargo` et `rustc` dans `~/.cargo/bin`, qui n'est p
 
 ```sh
 source "$HOME/.cargo/env"
-rustc --version   # 1.88 ou plus récent
+rustc --version   # 1.92 ou plus récent
 cargo --version
 ```
 

@@ -239,9 +239,9 @@ fn run(paths: Paths, log_guard: WorkerGuard) -> Result<()> {
         let _ = proxy.send_event(UserEvent::HotKey(e));
     }));
     let proxy = event_loop.create_proxy();
-    MenuEvent::set_event_handler(Some(move |e| {
+    MenuEvent::set_event_handler(Some(Arc::new(move |e| {
         let _ = proxy.send_event(UserEvent::Menu(e));
-    }));
+    })));
 
     let mut app = App::new(paths, event_loop.create_proxy(), log_guard)?;
     event_loop.run(move |event, _, control_flow| {

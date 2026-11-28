@@ -104,7 +104,7 @@ scripts\build.cmd                    # Windows : charge l'environnement Visual S
 Sans script : `cargo build --release -p speakwrite --features cuda`, ou `--features metal`, ou aucune option pour le processeur.
 
 Prérequis :
-- Rust ≥ 1.88 et CMake ;
+- Rust ≥ 1.92 et CMake ;
 - Windows : Visual Studio Build Tools (C++) ; CUDA Toolkit 12.x pour la dictée sur la carte graphique ;
 - Linux : `build-essential cmake pkg-config libssl-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libasound2-dev`.
 
@@ -282,7 +282,7 @@ Voix françaises (option `--voice`, chemins relatifs au dépôt [`kyutai/tts-voi
    - ✅ démarrage automatique avec la session (menu de l'icône → « Lancer à l'ouverture de session ») ;
    - reprise si la sortie audio change (casque branché en cours de route) ;
    - ✅ tests automatiques TTS → STT sur un corpus de phrases (`speakwrite --roundtrip`) ;
-   - mise à jour vers les dernières crates après `rustup update` (tray-icon 0.26 exige Rust 1.90) ;
+   - ✅ mise à jour vers les dernières crates (Rust 1.92 ; candle reste en 0.9 pour moshi, hf-hub en 0.4) ;
    - tests sous Linux et macOS ;
    - paquets par OS.
 
